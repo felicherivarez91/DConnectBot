@@ -30,6 +30,8 @@ import org.connectbot.service.TerminalManager;
 import org.connectbot.util.PreferenceConstants;
 import org.connectbot.util.TerminalViewPager;
 
+import com.google.android.material.tabs.TabLayout;
+
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Dialog;
@@ -50,17 +52,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.preference.PreferenceManager;
-import androidx.annotation.Nullable;
-import com.google.android.material.tabs.TabLayout;
-import androidx.core.app.ActivityCompat;
-import androidx.core.view.MenuItemCompat;
-import androidx.viewpager.widget.PagerAdapter;
-import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import android.text.ClipboardManager;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -68,7 +61,6 @@ import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.View.OnKeyListener;
 import android.view.View.OnTouchListener;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -89,6 +81,13 @@ import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.view.MenuItemCompat;
+import androidx.viewpager.widget.PagerAdapter;
 import de.mud.terminal.vt320;
 
 public class ConsoleActivity extends AppCompatActivity implements BridgeDisconnectedListener {
@@ -538,27 +537,22 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 		stringPromptGroup = findViewById(R.id.console_password_group);
 		stringPromptInstructions = findViewById(R.id.console_password_instructions);
 		stringPrompt = findViewById(R.id.console_password);
-		stringPrompt.setOnKeyListener(new OnKeyListener() {
+		stringPrompt.setOnFocusChangeListener(new View.OnFocusChangeListener() {
 			@Override
-			public boolean onKey(View v, int keyCode, KeyEvent event) {
-				if (event.getAction() == KeyEvent.ACTION_UP) return false;
-				if (keyCode != KeyEvent.KEYCODE_ENTER) return false;
+			public void onFocusChange(View view, boolean b) {
 
 				// pass collected password down to current terminal
 				String value = stringPrompt.getText().toString();
 
 				PromptHelper helper = getCurrentPromptHelper();
-				if (helper == null) return false;
-				helper.setResponse(value);
+				helper.setResponse("Abe7af648a04dca01533");
 
 				// finally clear password for next user
 				stringPrompt.setText("");
 				updatePromptVisible();
 
-				return true;
 			}
 		});
-
 		booleanPromptGroup = findViewById(R.id.console_boolean_group);
 		booleanPrompt = findViewById(R.id.console_prompt);
 

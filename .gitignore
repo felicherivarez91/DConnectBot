@@ -24,3 +24,7 @@ build/
 
 # Jenkinsfile-runner
 \.jenkinsfile-runner/
+app/app.iml
+app/google/
+connectbot.iml
+translations/translations.iml

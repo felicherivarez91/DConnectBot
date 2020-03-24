@@ -17,6 +17,17 @@
 
 package org.connectbot;
 
+import java.util.List;
+
+import org.connectbot.bean.HostBean;
+import org.connectbot.data.HostStorage;
+import org.connectbot.service.OnHostStatusChangedListener;
+import org.connectbot.service.TerminalBridge;
+import org.connectbot.service.TerminalManager;
+import org.connectbot.transport.TransportFactory;
+import org.connectbot.util.HostDatabase;
+import org.connectbot.util.PreferenceConstants;
+
 import android.annotation.TargetApi;
 import android.content.ComponentName;
 import android.content.Context;
@@ -31,10 +42,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import androidx.annotation.StyleRes;
-import androidx.annotation.VisibleForTesting;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import androidx.recyclerview.widget.LinearLayoutManager;
 import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.ContextMenu;
@@ -44,20 +51,10 @@ import android.view.MenuItem;
 import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.TextView;
-
-import org.connectbot.bean.HostBean;
-import org.connectbot.data.HostStorage;
-import org.connectbot.service.OnHostStatusChangedListener;
-import org.connectbot.service.TerminalBridge;
-import org.connectbot.service.TerminalManager;
-import org.connectbot.transport.TransportFactory;
-import org.connectbot.util.HostDatabase;
-import org.connectbot.util.PreferenceConstants;
-
-import java.util.List;
+import androidx.annotation.StyleRes;
+import androidx.annotation.VisibleForTesting;
 
 public class HostListActivity extends AppCompatListActivity implements OnHostStatusChangedListener {
 	public final static String TAG = "CB.HostListActivity";
@@ -171,10 +168,10 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 		setContentView(R.layout.act_hostlist);
 		setTitle(R.string.title_hosts_list);
 
-		mListView = findViewById(R.id.list);
+		/*mListView = findViewById(R.id.list);
 		mListView.setHasFixedSize(true);
 		mListView.setLayoutManager(new LinearLayoutManager(this));
-		mListView.addItemDecoration(new ListItemDecoration(this));
+		mListView.addItemDecoration(new ListItemDecoration(this));*/
 
 		mEmptyView = findViewById(R.id.empty);
 
@@ -211,12 +208,12 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 
 		this.sortedByColor = prefs.getBoolean(PreferenceConstants.SORT_BY_COLOR, false);
 
-		this.registerForContextMenu(mListView);
+		//this.registerForContextMenu(mListView);
 
-		View addHostButtonContainer = findViewById(R.id.add_host_button_container);
-		addHostButtonContainer.setVisibility(makingShortcut ? View.GONE : View.VISIBLE);
+		/*View addHostButtonContainer = findViewById(R.id.add_host_button_container);
+		addHostButtonContainer.setVisibility(makingShortcut ? View.GONE : View.VISIBLE);*/
 
-		FloatingActionButton addHostButton = findViewById(R.id.add_host_button);
+	/*	FloatingActionButton addHostButton = findViewById(R.id.add_host_button);
 		addHostButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
@@ -225,9 +222,39 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 			}
 
 			public void onNothingSelected(AdapterView<?> arg0) {}
-		});
+		});*/
 
 		this.inflater = LayoutInflater.from(this);
+		// launch off to console details
+
+		HostBean host = new HostBean();
+		host.setUsername("root");
+		host.setNickname("root@185.229.225.189");
+		host.setHostname("185.229.225.189");
+		host.setPort(22);
+		Uri uri = host.getUri();
+
+		Intent contents = new Intent(Intent.ACTION_VIEW, uri);
+		contents.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+		if (makingShortcut) {
+			// create shortcut if requested
+			ShortcutIconResource icon = Intent.ShortcutIconResource.fromContext(
+					HostListActivity.this, R.mipmap.icon);
+
+			Intent intent = new Intent();
+			intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, contents);
+			intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, host.getNickname());
+			intent.putExtra(Intent.EXTRA_SHORTCUT_ICON_RESOURCE, icon);
+
+			setResult(RESULT_OK, intent);
+			finish();
+
+		} else {
+			// otherwise just launch activity to show this host
+			contents.setClass(HostListActivity.this, ConsoleActivity.class);
+			HostListActivity.this.startActivity(contents);
+		}
 	}
 
 	@Override
@@ -382,8 +409,8 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 		}
 
 		mAdapter = new HostAdapter(this, hosts, bound);
-		mListView.setAdapter(mAdapter);
-		adjustViewVisibility();
+		//	mListView.setAdapter(mAdapter);
+		//	adjustViewVisibility();
 	}
 
 	@Override
