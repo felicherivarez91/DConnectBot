@@ -77,6 +77,7 @@ public class TerminalBridge implements VDUDisplay {
 	protected final TerminalManager manager;
 
 	public HostBean host;
+	private PortForwardBean portForwardBean;
 
 	/* package */ AbsTransport transport;
 
@@ -166,9 +167,10 @@ public class TerminalBridge implements VDUDisplay {
 	 * launch thread to start SSH connection and handle any hostkey verification
 	 * and password authentication.
 	 */
-	public TerminalBridge(final TerminalManager manager, final HostBean host) {
+	public TerminalBridge(final TerminalManager manager, final HostBean host, final PortForwardBean portForwardBean) {
 		this.manager = manager;
 		this.host = host;
+		this.portForwardBean = portForwardBean;
 
 		emulation = manager.getEmulation();
 		scrollback = manager.getScrollback();
@@ -272,15 +274,14 @@ public class TerminalBridge implements VDUDisplay {
 		transport.setBridge(this);
 		transport.setManager(manager);
 		transport.setHost(host);
-
 		// TODO make this more abstract so we don't litter on AbsTransport
 		transport.setCompression(host.getCompression());
 		transport.setUseAuthAgent(host.getUseAuthAgent());
 		transport.setEmulation(emulation);
 
 		if (transport.canForwardPorts()) {
-			for (PortForwardBean portForward : manager.hostdb.getPortForwardsForHost(host))
-				transport.addPortForward(portForward);
+
+			transport.addPortForward(portForwardBean);
 		}
 
 		outputLine(manager.res.getString(R.string.terminal_connecting, host.getHostname(), host.getPort(), host.getProtocol()));

@@ -31,6 +31,7 @@ import java.util.TimerTask;
 
 import org.connectbot.R;
 import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
 import org.connectbot.bean.PubkeyBean;
 import org.connectbot.data.ColorStorage;
 import org.connectbot.data.HostStorage;
@@ -212,13 +213,13 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	/**
 	 * Open a new SSH session using the given parameters.
 	 */
-	private TerminalBridge openConnection(HostBean host) throws IllegalArgumentException, IOException {
+	private TerminalBridge openConnection(HostBean host, PortForwardBean portForwardBean) throws IllegalArgumentException, IOException {
 		// throw exception if terminal already open
 		if (getConnectedBridge(host) != null) {
 			throw new IllegalArgumentException("Connection already open for that nickname");
 		}
 
-		TerminalBridge bridge = new TerminalBridge(this, host);
+		TerminalBridge bridge = new TerminalBridge(this, host, portForwardBean);
 		bridge.setOnDisconnectedListener(this);
 		bridge.startConnection();
 
@@ -266,13 +267,13 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	 * Open a new connection by reading parameters from the given URI. Follows
 	 * format specified by an individual transport.
 	 */
-	public TerminalBridge openConnection(Uri uri) throws Exception {
+	public TerminalBridge openConnection(Uri uri, PortForwardBean portForwardBean) throws Exception {
 		HostBean host = TransportFactory.findHost(hostdb, uri);
 
 		if (host == null)
 			host = TransportFactory.getTransport(uri.getScheme()).createHost(uri);
 
-		return openConnection(host);
+		return openConnection(host, portForwardBean);
 	}
 
 	/**

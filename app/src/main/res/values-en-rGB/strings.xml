@@ -61,7 +61,7 @@
   <string name="prompt_source_port">Source port:</string>
   <string name="prompt_destination">Destination:</string>
   <string name="prompt_old_password">Old password:</string>
-	<string name="prompt_password">Press button Done to continue:</string>
+	<string name="prompt_password">Password: </string>
   <string name="prompt_again">(again)</string>
   <string name="prompt_type">Type:</string>
   <string name="prompt_password_can_be_blank">Note: password can be blank</string>

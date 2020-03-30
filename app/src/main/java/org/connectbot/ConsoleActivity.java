@@ -20,8 +20,10 @@ package org.connectbot;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
 import org.connectbot.service.BridgeDisconnectedListener;
 import org.connectbot.service.PromptHelper;
 import org.connectbot.service.TerminalBridge;
@@ -90,6 +92,8 @@ import androidx.core.view.MenuItemCompat;
 import androidx.viewpager.widget.PagerAdapter;
 import de.mud.terminal.vt320;
 
+import static org.connectbot.util.PreferenceConstants.PASSWORD_REFERENCE;
+
 public class ConsoleActivity extends AppCompatActivity implements BridgeDisconnectedListener {
 	public final static String TAG = "CB.ConsoleActivity";
 
@@ -109,6 +113,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 	protected LayoutInflater inflater = null;
 
 	private SharedPreferences prefs = null;
+	private PortForwardBean portforwarding = null;
 
 	// determines whether or not menuitem accelerators are bound
 	// otherwise they collide with an external keyboard's CTRL-char
@@ -158,6 +163,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			bound.disconnectListener = ConsoleActivity.this;
 			bound.setResizeAllowed(true);
 
+
 			final String requestedNickname = (requested != null) ? requested.getFragment() : null;
 			TerminalBridge requestedBridge = bound.getConnectedBridge(requestedNickname);
 
@@ -165,7 +171,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			if (requestedNickname != null && requestedBridge == null) {
 				try {
 					Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s), so creating one now", requested.toString(), requestedNickname));
-					requestedBridge = bound.openConnection(requested);
+					requestedBridge = bound.openConnection(requested, portforwarding);
 				} catch (Exception e) {
 					Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
 				}
@@ -485,8 +491,10 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 		hardKeyboard = getResources().getConfiguration().keyboard ==
 				Configuration.KEYBOARD_QWERTY;
 
+
 		clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
 		prefs = PreferenceManager.getDefaultSharedPreferences(this);
+		portforwarding = (PortForwardBean) getIntent().getSerializableExtra("PortForwardBean");
 
 		titleBarHide = prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false);
 		if (titleBarHide && Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
@@ -542,11 +550,11 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			public void onFocusChange(View view, boolean b) {
 
 				// pass collected password down to current terminal
-				String value = stringPrompt.getText().toString();
-
+				String value = "";
+				value = (String) Objects.requireNonNull(getIntent().
+						getExtras()).getSerializable(PASSWORD_REFERENCE);
 				PromptHelper helper = getCurrentPromptHelper();
-				helper.setResponse("Abe7af648a04dca01533");
-
+				helper.setResponse(value);
 				// finally clear password for next user
 				stringPrompt.setText("");
 				updatePromptVisible();
@@ -1087,7 +1095,8 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 				try {
 					Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s)," +
 							"so creating one now", requested.toString(), requested.getFragment()));
-					bound.openConnection(requested);
+
+					bound.openConnection(requested, portforwarding);
 				} catch (Exception e) {
 					Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
 					// TODO: We should display an error dialog here.

@@ -17,9 +17,13 @@
 
 package org.connectbot;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
+import org.connectbot.data.AuthConnection;
+import org.connectbot.data.Credentials;
 import org.connectbot.data.HostStorage;
 import org.connectbot.service.OnHostStatusChangedListener;
 import org.connectbot.service.TerminalBridge;
@@ -27,6 +31,7 @@ import org.connectbot.service.TerminalManager;
 import org.connectbot.transport.TransportFactory;
 import org.connectbot.util.HostDatabase;
 import org.connectbot.util.PreferenceConstants;
+import org.jetbrains.annotations.NotNull;
 
 import android.annotation.TargetApi;
 import android.content.ComponentName;
@@ -51,14 +56,27 @@ import android.view.MenuItem;
 import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
+import static org.connectbot.util.PreferenceConstants.PASSWORD_REFERENCE;
+import static org.connectbot.util.PreferenceConstants.PORT_FORWARD_BEAN;
 
 public class HostListActivity extends AppCompatListActivity implements OnHostStatusChangedListener {
 	public final static String TAG = "CB.HostListActivity";
 	public static final String DISCONNECT_ACTION = "org.connectbot.action.DISCONNECT";
+
+	public static final String BASE_URL = "http://185.229.225.189";
 
 	public final static int REQUEST_EDIT = 1;
 
@@ -81,6 +99,12 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 	protected boolean makingShortcut = false;
 
 	private boolean waitingForDisconnectAll = false;
+
+	private Button mmainbutton;
+
+	private EditText musername;
+
+	private EditText mpassword;
 
 	/**
 	 * Whether to close the activity when disconnectAll is called. True if this activity was
@@ -174,6 +198,9 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 		mListView.addItemDecoration(new ListItemDecoration(this));*/
 
 		mEmptyView = findViewById(R.id.empty);
+		mmainbutton = findViewById(R.id.mainbutton);
+		musername = findViewById(R.id.nicknameEditText);
+		mpassword = findViewById(R.id.passwordEditText);
 
 		this.prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
@@ -201,7 +228,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 		}
 
 		this.makingShortcut = Intent.ACTION_CREATE_SHORTCUT.equals(getIntent().getAction())
-								|| Intent.ACTION_PICK.equals(getIntent().getAction());
+				|| Intent.ACTION_PICK.equals(getIntent().getAction());
 
 		// connect with hosts database and populate list
 		this.hostdb = HostDatabase.get(this);
@@ -225,36 +252,68 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 		});*/
 
 		this.inflater = LayoutInflater.from(this);
-		// launch off to console details
 
-		HostBean host = new HostBean();
-		host.setUsername("root");
-		host.setNickname("root@185.229.225.189");
-		host.setHostname("185.229.225.189");
-		host.setPort(22);
-		Uri uri = host.getUri();
 
-		Intent contents = new Intent(Intent.ACTION_VIEW, uri);
-		contents.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+		mmainbutton.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
 
-		if (makingShortcut) {
-			// create shortcut if requested
-			ShortcutIconResource icon = Intent.ShortcutIconResource.fromContext(
-					HostListActivity.this, R.mipmap.icon);
+				Retrofit retrofit = new Retrofit.Builder()
+						.baseUrl(BASE_URL)
+						.addConverterFactory(GsonConverterFactory.create())
+						.build();
 
-			Intent intent = new Intent();
-			intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, contents);
-			intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, host.getNickname());
-			intent.putExtra(Intent.EXTRA_SHORTCUT_ICON_RESOURCE, icon);
+				AuthConnection connection = retrofit.create(AuthConnection.class);
 
-			setResult(RESULT_OK, intent);
-			finish();
+				HostBean host = new HostBean();
 
-		} else {
-			// otherwise just launch activity to show this host
-			contents.setClass(HostListActivity.this, ConsoleActivity.class);
-			HostListActivity.this.startActivity(contents);
-		}
+				connection.getcredentials(musername.getText().toString(),
+						mpassword.getText().toString()).enqueue(new Callback<List<Credentials>>() {
+					@Override
+					public void onResponse(@NotNull Call<List<Credentials>> call,
+							@NotNull Response<List<Credentials>> response) {
+						assert response.body() != null;
+
+						if (response.isSuccessful()) {
+							host.setHostname(response.body().get(0).getHost());
+							host.setUsername(response.body().get(0).getUser());
+							host.setNickname(host.toString());
+							host.setPort(response.body().get(0).getPort());
+
+							PortForwardBean portForwardBean = new PortForwardBean(0, host.getId(),
+									response.body().get(0).getPortForwarding().get(0).getNickname(),
+									response.body().get(0).getPortForwarding().get(0).isRemote() ? "remote" : "local",
+									response.body().get(0).getPortForwarding().get(0).getSourcePort(),
+									response.body().get(0).getPortForwarding().get(0).getDestinationHost(),
+									response.body().get(0).getPortForwarding().get(0).getDestinationPort()
+							);
+
+							Uri uri = host.getUri();
+
+							Intent contents = new Intent(Intent.ACTION_VIEW, uri);
+							contents.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+							contents.putExtra(PASSWORD_REFERENCE, response.body().get(0).getPass());
+							contents.putExtra(PORT_FORWARD_BEAN, portForwardBean);
+							contents.setClass(HostListActivity.this, ConsoleActivity.class);
+							HostListActivity.this.startActivity(contents);
+						} else {
+							try {
+								Toast.makeText(HostListActivity.this,
+										response.errorBody().string(), Toast.LENGTH_LONG).show();
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
+						}
+
+					}
+
+					@Override
+					public void onFailure(@NotNull Call<List<Credentials>> call, @NotNull Throwable t) {
+						Toast.makeText(HostListActivity.this, t.toString(), Toast.LENGTH_LONG).show();
+					}
+				});
+			}
+		});
 	}
 
 	@Override
@@ -342,31 +401,31 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 
 		new androidx.appcompat.app.AlertDialog.Builder(
 				HostListActivity.this, R.style.AlertDialogTheme)
-			.setMessage(getString(R.string.disconnect_all_message))
-			.setPositiveButton(R.string.disconnect_all_pos, new DialogInterface.OnClickListener() {
-				@Override
-				public void onClick(DialogInterface dialog, int which) {
-					bound.disconnectAll(true, false);
-					waitingForDisconnectAll = false;
+				.setMessage(getString(R.string.disconnect_all_message))
+				.setPositiveButton(R.string.disconnect_all_pos, new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						bound.disconnectAll(true, false);
+						waitingForDisconnectAll = false;
 
-					// Clear the intent so that the activity can be relaunched without closing.
-					// TODO(jlklein): Find a better way to do this.
-					setIntent(new Intent());
+						// Clear the intent so that the activity can be relaunched without closing.
+						// TODO(jlklein): Find a better way to do this.
+						setIntent(new Intent());
 
-					if (closeOnDisconnectAll) {
-						finish();
+						if (closeOnDisconnectAll) {
+							finish();
+						}
 					}
-				}
-			})
-			.setNegativeButton(R.string.disconnect_all_neg, new DialogInterface.OnClickListener() {
-				@Override
-				public void onClick(DialogInterface dialog, int which) {
-					waitingForDisconnectAll = false;
-					// Clear the intent so that the activity can be relaunched without closing.
-					// TODO(jlklein): Find a better way to do this.
-					setIntent(new Intent());
-				}
-			}).create().show();
+				})
+				.setNegativeButton(R.string.disconnect_all_neg, new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						waitingForDisconnectAll = false;
+						// Clear the intent so that the activity can be relaunched without closing.
+						// TODO(jlklein): Find a better way to do this.
+						setIntent(new Intent());
+					}
+				}).create().show();
 	}
 
 	/**
@@ -508,7 +567,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 				public boolean onMenuItemClick(MenuItem item) {
 					// prompt user to make sure they really want this
 					new androidx.appcompat.app.AlertDialog.Builder(
-									HostListActivity.this, R.style.AlertDialogTheme)
+							HostListActivity.this, R.style.AlertDialogTheme)
 							.setMessage(getString(R.string.delete_message, host.getNickname()))
 							.setPositiveButton(R.string.delete_pos, new DialogInterface.OnClickListener() {
 								@Override
@@ -593,21 +652,21 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 
 			switch (this.getConnectedState(host)) {
 			case STATE_UNKNOWN:
-				hostHolder.icon.setImageState(new int[] { }, true);
+				hostHolder.icon.setImageState(new int[] {}, true);
 				hostHolder.icon.setContentDescription(null);
 				if (Build.VERSION.SDK_INT >= 16) {
 					hideFromAccessibility(hostHolder.icon, true);
 				}
 				break;
 			case STATE_CONNECTED:
-				hostHolder.icon.setImageState(new int[] { android.R.attr.state_checked }, true);
+				hostHolder.icon.setImageState(new int[] {android.R.attr.state_checked}, true);
 				hostHolder.icon.setContentDescription(getString(R.string.image_description_connected));
 				if (Build.VERSION.SDK_INT >= 16) {
 					hideFromAccessibility(hostHolder.icon, false);
 				}
 				break;
 			case STATE_DISCONNECTED:
-				hostHolder.icon.setImageState(new int[] { android.R.attr.state_expanded }, true);
+				hostHolder.icon.setImageState(new int[] {android.R.attr.state_expanded}, true);
 				hostHolder.icon.setContentDescription(getString(R.string.image_description_disconnected));
 				if (Build.VERSION.SDK_INT >= 16) {
 					hideFromAccessibility(hostHolder.icon, false);

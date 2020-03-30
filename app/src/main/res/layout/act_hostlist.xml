@@ -18,52 +18,44 @@
  */
 -->
 
-<RelativeLayout
-	xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
 	android:layout_width="fill_parent"
 	android:layout_height="fill_parent"
-	android:orientation="vertical"
-	>
+	android:orientation="vertical">
 
-	<!-- paddingBottom is calculated with FloatingActionButton's height (56dp) and
-	     margins (16dp): 56dp + (2 x 16dp) = 88dp. -->
-	<androidx.recyclerview.widget.RecyclerView
-		android:id="@+id/list"
-		android:layout_width="fill_parent"
-		android:layout_height="fill_parent"
-		android:paddingBottom="88dp"
-		android:clipToPadding="false"
-		/>
-
-	<TextView
-		android:id="@+id/empty"
-		android:layout_width="fill_parent"
-		android:layout_height="fill_parent"
-		android:gravity="center"
-		android:text="@string/list_host_empty"
-		android:textAppearance="?android:attr/textAppearanceMedium"
-		/>
-
-	<FrameLayout
-		android:id="@+id/add_host_button_container"
-		android:layout_height="wrap_content"
+	<EditText
+		android:id="@+id/nicknameEditText"
 		android:layout_width="wrap_content"
-		android:layout_alignParentBottom="true"
-		android:layout_alignParentEnd="true"
-		android:layout_alignParentRight="true">
+		android:layout_height="wrap_content"
+		android:layout_marginBottom="10dp"
+		android:ems="10"
+		android:hint="@string/prompt_user"
+		app:layout_constraintBottom_toTopOf="@+id/passwordEditText"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent" />
 
-		<com.google.android.material.floatingactionbutton.FloatingActionButton
-			android:id="@+id/add_host_button"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_margin="16dp"
-			android:src="@drawable/ic_add"
-			android:tint="@android:color/white"
-			android:contentDescription="@string/hostpref_add_host"
-			app:backgroundTint="@color/accent"
-			app:rippleColor="@color/dark_accent" />
+	<EditText
+		android:id="@+id/passwordEditText"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:ems="10"
+		android:hint="@string/prompt_password"
+		android:inputType="textPassword"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent" />
 
-	</FrameLayout>
+	<Button
+		android:id="@+id/mainbutton"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="10dp"
+		android:text="@string/submit_button"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintHorizontal_bias="0.498"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toBottomOf="@+id/passwordEditText" />
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

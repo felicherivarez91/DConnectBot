@@ -17,6 +17,8 @@
 
 package org.connectbot.bean;
 
+import java.io.Serializable;
+
 import org.connectbot.util.HostDatabase;
 
 import android.annotation.SuppressLint;
@@ -27,7 +29,7 @@ import android.content.ContentValues;
  * @author Kenny Root
  *
  */
-public class PortForwardBean extends AbstractBean {
+public class PortForwardBean extends AbstractBean implements Serializable {
 	public static final String BEAN_NAME = "portforward";
 
 	/* Database fields */

@@ -86,6 +86,8 @@ public final class PreferenceConstants {
 	public static final String YES = "yes";
 	public static final String NO = "no";
 	public static final String ALT = "alt";
+	public static final String PASSWORD_REFERENCE = "password";
+	public static final String PORT_FORWARD_BEAN = "PortForwardBean";
 
 	/* Backup identifiers */
 	public static final String BACKUP_PREF_KEY = "prefs";
