@@ -17,49 +17,9 @@
 
 package org.connectbot.transport;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.interfaces.DSAPrivateKey;
-import java.security.interfaces.DSAPublicKey;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.security.spec.InvalidKeySpecException;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.connectbot.R;
-import org.connectbot.bean.HostBean;
-import org.connectbot.bean.PortForwardBean;
-import org.connectbot.bean.PubkeyBean;
-import org.connectbot.service.TerminalBridge;
-import org.connectbot.service.TerminalManager;
-import org.connectbot.service.TerminalManager.KeyHolder;
-import org.connectbot.util.Ed25519Provider;
-import org.connectbot.util.HostDatabase;
-import org.connectbot.util.PubkeyDatabase;
-import org.connectbot.util.PubkeyUtils;
-
 import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
-import net.i2p.crypto.eddsa.EdDSAPrivateKey;
-import net.i2p.crypto.eddsa.EdDSAPublicKey;
 
 import com.trilead.ssh2.AuthAgentCallback;
 import com.trilead.ssh2.ChannelCondition;
@@ -77,6 +37,47 @@ import com.trilead.ssh2.signature.DSASHA1Verify;
 import com.trilead.ssh2.signature.ECDSASHA2Verify;
 import com.trilead.ssh2.signature.Ed25519Verify;
 import com.trilead.ssh2.signature.RSASHA1Verify;
+
+import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import net.i2p.crypto.eddsa.EdDSAPublicKey;
+
+import org.connectbot.R;
+import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
+import org.connectbot.bean.PubkeyBean;
+import org.connectbot.service.TerminalBridge;
+import org.connectbot.service.TerminalManager;
+import org.connectbot.service.TerminalManager.KeyHolder;
+import org.connectbot.util.Ed25519Provider;
+import org.connectbot.util.HostDatabase;
+import org.connectbot.util.PubkeyDatabase;
+import org.connectbot.util.PubkeyUtils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.interfaces.DSAPrivateKey;
+import java.security.interfaces.DSAPublicKey;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author Kenny Root
@@ -180,14 +181,9 @@ public class SSH extends AbsTransport implements ConnectionMonitor, InteractiveC
 				bridge.outputLine(manager.res.getString(R.string.host_authenticity_warning, hostname));
 				bridge.outputLine(manager.res.getString(R.string.host_fingerprint, algorithmName, fingerprint));
 
-				result = bridge.promptHelper.requestBooleanPrompt(null, manager.res.getString(R.string.prompt_continue_connecting));
-				if (result == null) {
-					return false;
-				}
-				if (result) {
-					// save this key in known database
-					manager.hostdb.saveKnownHost(hostname, port, serverHostKeyAlgorithm, serverHostKey);
-				}
+                result = true; //bridge.promptHelper.requestBooleanPrompt(null, manager.res.getString(R.string.prompt_continue_connecting));
+
+                manager.hostdb.saveKnownHost(hostname, port, serverHostKeyAlgorithm, serverHostKey);
 				return result;
 
 			case KnownHosts.HOSTKEY_HAS_CHANGED:

@@ -18,8 +18,9 @@
  */
 -->
 
-<RelativeLayout
+<androidx.constraintlayout.widget.ConstraintLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
 	android:layout_width="fill_parent"
 	android:layout_height="fill_parent"
 	android:background="#ff000000">
@@ -32,11 +33,13 @@
 		android:text="@string/terminal_no_hosts_connected"
 		android:textAppearance="?android:attr/textAppearanceMedium"/>
 
-	<org.connectbot.util.TerminalViewPager
-		android:id="@+id/console_flip"
-		android:layout_width="fill_parent"
-		android:layout_height="fill_parent"
-		/>
+    <org.connectbot.util.TerminalViewPager
+        android:id="@+id/console_flip"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:layout_marginTop="100dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 	<RelativeLayout
 		android:id="@+id/console_password_group"
@@ -70,58 +73,6 @@
 
 	</RelativeLayout>
 
-	<RelativeLayout
-		android:id="@+id/console_boolean_group"
-		android:layout_width="fill_parent"
-		android:layout_height="wrap_content"
-		android:layout_alignParentBottom="true"
-		android:background="#80000000"
-		android:fadingEdge="horizontal"
-		android:fadingEdgeLength="25dip"
-		android:padding="5dip"
-		android:visibility="gone"
-		>
-
-		<TextView
-			android:id="@+id/console_prompt"
-			android:layout_width="fill_parent"
-			android:layout_height="wrap_content"
-			android:textAppearance="?android:attr/textAppearanceMedium"
-			/>
-
-		<Button
-			android:id="@+id/console_prompt_no"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_alignParentEnd="true"
-			android:layout_alignParentRight="true"
-			android:layout_below="@+id/console_prompt"
-			android:clickable="false"
-			android:paddingBottom="10dip"
-			android:paddingEnd="40dip"
-			android:paddingLeft="40dip"
-			android:paddingRight="40dip"
-			android:paddingStart="40dip"
-			android:paddingTop="5dip"
-			android:text="@string/button_no"/>
-
-		<Button
-			android:id="@+id/console_prompt_yes"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_below="@+id/console_prompt"
-			android:layout_toLeftOf="@+id/console_prompt_no"
-			android:layout_toStartOf="@+id/console_prompt_no"
-			android:paddingBottom="10dip"
-			android:paddingEnd="40dip"
-			android:paddingLeft="40dip"
-			android:paddingRight="40dip"
-			android:paddingStart="40dip"
-			android:paddingTop="5dip"
-			android:text="@string/button_yes"/>
-
-	</RelativeLayout>
-
 	<include layout="@layout/inc_keyboard" />
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

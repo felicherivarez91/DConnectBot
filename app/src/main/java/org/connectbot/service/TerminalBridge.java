@@ -17,22 +17,6 @@
 
 package org.connectbot.service;
 
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.connectbot.R;
-import org.connectbot.TerminalView;
-import org.connectbot.bean.HostBean;
-import org.connectbot.bean.PortForwardBean;
-import org.connectbot.bean.SelectionArea;
-import org.connectbot.transport.AbsTransport;
-import org.connectbot.transport.TransportFactory;
-import org.connectbot.util.HostDatabase;
-
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
@@ -46,6 +30,23 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.text.ClipboardManager;
 import android.util.Log;
+
+import org.connectbot.R;
+import org.connectbot.TerminalView;
+import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
+import org.connectbot.bean.SelectionArea;
+import org.connectbot.transport.AbsTransport;
+import org.connectbot.transport.TransportFactory;
+import org.connectbot.util.HostDatabase;
+
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import de.mud.terminal.VDUBuffer;
 import de.mud.terminal.VDUDisplay;
 import de.mud.terminal.vt320;
@@ -448,7 +449,7 @@ public class TerminalBridge implements VDUDisplay {
 	 */
 	public void dispatchDisconnect(boolean immediate) {
 		// We don't need to do this multiple times.
-		synchronized (this) {
+	/*	synchronized (this) {
 			if (disconnected && !immediate)
 				return;
 
@@ -496,7 +497,7 @@ public class TerminalBridge implements VDUDisplay {
 			disconnectPromptThread.setName("DisconnectPrompt");
 			disconnectPromptThread.setDaemon(true);
 			disconnectPromptThread.start();
-		}
+		}*/
 	}
 
 	/**

@@ -17,23 +17,6 @@
 
 package org.connectbot;
 
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
-import org.connectbot.bean.HostBean;
-import org.connectbot.bean.PortForwardBean;
-import org.connectbot.service.BridgeDisconnectedListener;
-import org.connectbot.service.PromptHelper;
-import org.connectbot.service.TerminalBridge;
-import org.connectbot.service.TerminalKeyListener;
-import org.connectbot.service.TerminalManager;
-import org.connectbot.util.PreferenceConstants;
-import org.connectbot.util.TerminalViewPager;
-
-import com.google.android.material.tabs.TabLayout;
-
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Dialog;
@@ -74,7 +57,6 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
@@ -83,6 +65,7 @@ import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
@@ -90,9 +73,28 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.view.MenuItemCompat;
 import androidx.viewpager.widget.PagerAdapter;
+
+import com.google.android.material.tabs.TabLayout;
+
+import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
+import org.connectbot.service.BridgeDisconnectedListener;
+import org.connectbot.service.PromptHelper;
+import org.connectbot.service.TerminalBridge;
+import org.connectbot.service.TerminalKeyListener;
+import org.connectbot.service.TerminalManager;
+import org.connectbot.util.PreferenceConstants;
+import org.connectbot.util.TerminalViewPager;
+
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
 import de.mud.terminal.vt320;
 
 import static org.connectbot.util.PreferenceConstants.PASSWORD_REFERENCE;
+import static org.connectbot.util.PreferenceConstants.PORT_FORWARD_BEAN;
 
 public class ConsoleActivity extends AppCompatActivity implements BridgeDisconnectedListener {
 	public final static String TAG = "CB.ConsoleActivity";
@@ -125,11 +127,6 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 	private RelativeLayout stringPromptGroup;
 	protected EditText stringPrompt;
 	private TextView stringPromptInstructions;
-
-	private RelativeLayout booleanPromptGroup;
-	private TextView booleanPrompt;
-	private Button booleanYes;
-
 	private LinearLayout keyboardGroup;
 	private Runnable keyboardGroupHider;
 
@@ -429,7 +426,6 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 
 	protected void hideAllPrompts() {
 		stringPromptGroup.setVisibility(View.GONE);
-		booleanPromptGroup.setVisibility(View.GONE);
 	}
 
 	private void showEmulatedKeys(boolean showActionBar) {
@@ -484,9 +480,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 	public void onCreate(Bundle icicle) {
 		super.onCreate(icicle);
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-			StrictModeSetup.run();
-		}
+        StrictModeSetup.run();
 
 		hardKeyboard = getResources().getConfiguration().keyboard ==
 				Configuration.KEYBOARD_QWERTY;
@@ -494,10 +488,10 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 
 		clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
 		prefs = PreferenceManager.getDefaultSharedPreferences(this);
-		portforwarding = (PortForwardBean) getIntent().getSerializableExtra("PortForwardBean");
+        portforwarding = (PortForwardBean) getIntent().getSerializableExtra(PORT_FORWARD_BEAN);
 
 		titleBarHide = prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false);
-		if (titleBarHide && Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+        if (titleBarHide) {
 			// This is a separate method because Gradle does not uniformly respect the conditional
 			// Build check. See: https://code.google.com/p/android/issues/detail?id=137195
 			requestActionBar();
@@ -561,30 +555,6 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 
 			}
 		});
-		booleanPromptGroup = findViewById(R.id.console_boolean_group);
-		booleanPrompt = findViewById(R.id.console_prompt);
-
-		booleanYes = findViewById(R.id.console_prompt_yes);
-		booleanYes.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				PromptHelper helper = getCurrentPromptHelper();
-				if (helper == null) return;
-				helper.setResponse(Boolean.TRUE);
-				updatePromptVisible();
-			}
-		});
-
-		Button booleanNo = findViewById(R.id.console_prompt_no);
-		booleanNo.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				PromptHelper helper = getCurrentPromptHelper();
-				if (helper == null) return;
-				helper.setResponse(Boolean.FALSE);
-				updatePromptVisible();
-			}
-		});
 
 		fade_out_delayed = AnimationUtils.loadAnimation(this, R.anim.fade_out_delayed);
 
@@ -608,7 +578,6 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 					ViewGroup.LayoutParams.WRAP_CONTENT);
 			layoutParams.addRule(RelativeLayout.ABOVE, R.id.keyboard_group);
 			findViewById(R.id.console_password_group).setLayoutParams(layoutParams);
-			findViewById(R.id.console_boolean_group).setLayoutParams(layoutParams);
 
 			// Show virtual keyboard
 			keyboardGroup.setVisibility(View.VISIBLE);
@@ -1187,9 +1156,6 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 
 		} else if (Boolean.class.equals(prompt.promptRequested)) {
 			hideEmulatedKeys();
-			booleanPromptGroup.setVisibility(View.VISIBLE);
-			booleanPrompt.setText(prompt.promptHint);
-			booleanYes.requestFocus();
 
 		} else {
 			hideAllPrompts();

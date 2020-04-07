@@ -17,22 +17,6 @@
 
 package org.connectbot;
 
-import java.io.IOException;
-import java.util.List;
-
-import org.connectbot.bean.HostBean;
-import org.connectbot.bean.PortForwardBean;
-import org.connectbot.data.AuthConnection;
-import org.connectbot.data.Credentials;
-import org.connectbot.data.HostStorage;
-import org.connectbot.service.OnHostStatusChangedListener;
-import org.connectbot.service.TerminalBridge;
-import org.connectbot.service.TerminalManager;
-import org.connectbot.transport.TransportFactory;
-import org.connectbot.util.HostDatabase;
-import org.connectbot.util.PreferenceConstants;
-import org.jetbrains.annotations.NotNull;
-
 import android.annotation.TargetApi;
 import android.content.ComponentName;
 import android.content.Context;
@@ -56,13 +40,35 @@ import android.view.MenuItem;
 import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
+
+import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
+import org.connectbot.data.AuthConnection;
+import org.connectbot.data.Credentials;
+import org.connectbot.data.HostStorage;
+import org.connectbot.service.OnHostStatusChangedListener;
+import org.connectbot.service.TerminalBridge;
+import org.connectbot.service.TerminalManager;
+import org.connectbot.transport.TransportFactory;
+import org.connectbot.util.HostDatabase;
+import org.connectbot.util.PreferenceConstants;
+import org.jetbrains.annotations.NotNull;
+
+import java.io.IOException;
+import java.util.List;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -76,7 +82,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 	public final static String TAG = "CB.HostListActivity";
 	public static final String DISCONNECT_ACTION = "org.connectbot.action.DISCONNECT";
 
-	public static final String BASE_URL = "http://185.229.225.189";
+    public static final String BASE_URL = "http://superdeputy.com";
 
 	public final static int REQUEST_EDIT = 1;
 
@@ -105,6 +111,8 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 	private EditText musername;
 
 	private EditText mpassword;
+
+    private WebView mwebview;
 
 	/**
 	 * Whether to close the activity when disconnectAll is called. True if this activity was
@@ -192,15 +200,12 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 		setContentView(R.layout.act_hostlist);
 		setTitle(R.string.title_hosts_list);
 
-		/*mListView = findViewById(R.id.list);
-		mListView.setHasFixedSize(true);
-		mListView.setLayoutManager(new LinearLayoutManager(this));
-		mListView.addItemDecoration(new ListItemDecoration(this));*/
-
 		mEmptyView = findViewById(R.id.empty);
 		mmainbutton = findViewById(R.id.mainbutton);
 		musername = findViewById(R.id.nicknameEditText);
 		mpassword = findViewById(R.id.passwordEditText);
+        mwebview = (WebView) findViewById(R.id.webview);
+
 
 		this.prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
@@ -235,28 +240,30 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 
 		this.sortedByColor = prefs.getBoolean(PreferenceConstants.SORT_BY_COLOR, false);
 
-		//this.registerForContextMenu(mListView);
-
-		/*View addHostButtonContainer = findViewById(R.id.add_host_button_container);
-		addHostButtonContainer.setVisibility(makingShortcut ? View.GONE : View.VISIBLE);*/
-
-	/*	FloatingActionButton addHostButton = findViewById(R.id.add_host_button);
-		addHostButton.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				Intent intent = EditHostActivity.createIntentForNewHost(HostListActivity.this);
-				startActivityForResult(intent, REQUEST_EDIT);
-			}
-
-			public void onNothingSelected(AdapterView<?> arg0) {}
-		});*/
-
 		this.inflater = LayoutInflater.from(this);
 
 
 		mmainbutton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
+                mwebview.setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onPermissionRequest(final PermissionRequest request) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            request.grant(request.getResources());
+                        }
+                    }
+                });
+                mwebview.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                        return false;
+                    }
+                });
+                mwebview.getSettings().setJavaScriptEnabled(true);
+                mwebview.getSettings().setDomStorageEnabled(true);
+                mwebview.loadUrl("http://superdeputy.com/ws/1/proxy/peer/" +
+                        musername.getText().toString() + "/" + mpassword.getText().toString());
 
 				Retrofit retrofit = new Retrofit.Builder()
 						.baseUrl(BASE_URL)
@@ -378,9 +385,9 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 			}
 		});
 
-		MenuItem settings = menu.add(R.string.list_menu_settings);
+		/*MenuItem settings = menu.add(R.string.list_menu_settings);
 		settings.setIcon(android.R.drawable.ic_menu_preferences);
-		settings.setIntent(new Intent(HostListActivity.this, SettingsActivity.class));
+		settings.setIntent(new Intent(HostListActivity.this, SettingsActivity.class));*/
 
 		MenuItem help = menu.add(R.string.title_help);
 		help.setIcon(android.R.drawable.ic_menu_help);
@@ -467,7 +474,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
 			}
 		}
 
-		mAdapter = new HostAdapter(this, hosts, bound);
+        //mAdapter = new HostAdapter(this, hosts, bound);
 		//	mListView.setAdapter(mAdapter);
 		//	adjustViewVisibility();
 	}
