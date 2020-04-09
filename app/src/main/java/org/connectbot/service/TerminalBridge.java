@@ -18,6 +18,7 @@
 package org.connectbot.service;
 
 import android.content.Context;
+import android.database.SQLException;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.Canvas;
@@ -271,7 +272,6 @@ public class TerminalBridge implements VDUDisplay {
 			Log.i(TAG, "No transport found for " + host.getProtocol());
 			return;
 		}
-
 		transport.setBridge(this);
 		transport.setManager(manager);
 		transport.setHost(host);
@@ -281,9 +281,34 @@ public class TerminalBridge implements VDUDisplay {
 		transport.setEmulation(emulation);
 
 		if (transport.canForwardPorts()) {
+            try {
+                // Why length(), not isEmpty(), is used: http://stackoverflow.com/q/10606725
+                String sourcePort = Integer.toString(portForwardBean.getSourcePort());
 
-			transport.addPortForward(portForwardBean);
-		}
+                String destination = portForwardBean.getDestAddr() + ":" + portForwardBean.getDestPort();
+
+                PortForwardBean portForward = new PortForwardBean(
+                        host != null ? host.getId() : -1,
+                        portForwardBean.getNickname(),
+                        portForwardBean.getType(),
+                        sourcePort,
+                        destination);
+
+                if (manager.mHostBridgeMap != null) {
+                    transport.addPortForward(portForward);
+                    transport.enablePortForward(portForward);
+                }
+
+                if (host != null && !manager.hostDatabase.savePortForward(portForward)) {
+                    throw new SQLException("Could not save port forward");
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "Could not update port forward", e);
+                // TODO Show failure dialog.
+            }
+        }
+
 
 		outputLine(manager.res.getString(R.string.terminal_connecting, host.getHostname(), host.getPort(), host.getProtocol()));
 

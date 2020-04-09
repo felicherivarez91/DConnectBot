@@ -17,32 +17,6 @@
 
 package org.connectbot.service;
 
-import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.security.KeyPair;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Timer;
-import java.util.TimerTask;
-
-import org.connectbot.R;
-import org.connectbot.bean.HostBean;
-import org.connectbot.bean.PortForwardBean;
-import org.connectbot.bean.PubkeyBean;
-import org.connectbot.data.ColorStorage;
-import org.connectbot.data.HostStorage;
-import org.connectbot.transport.TransportFactory;
-import org.connectbot.util.HostDatabase;
-import org.connectbot.util.PreferenceConstants;
-import org.connectbot.util.ProviderLoader;
-import org.connectbot.util.ProviderLoaderListener;
-import org.connectbot.util.PubkeyDatabase;
-import org.connectbot.util.PubkeyUtils;
-
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -59,6 +33,32 @@ import android.os.IBinder;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
 import android.util.Log;
+
+import org.connectbot.R;
+import org.connectbot.bean.HostBean;
+import org.connectbot.bean.PortForwardBean;
+import org.connectbot.bean.PubkeyBean;
+import org.connectbot.data.ColorStorage;
+import org.connectbot.data.HostStorage;
+import org.connectbot.transport.TransportFactory;
+import org.connectbot.util.HostDatabase;
+import org.connectbot.util.PreferenceConstants;
+import org.connectbot.util.ProviderLoader;
+import org.connectbot.util.ProviderLoaderListener;
+import org.connectbot.util.PubkeyDatabase;
+import org.connectbot.util.PubkeyUtils;
+
+import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.security.KeyPair;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Manager for SSH connections that runs as a service. This service holds a list
@@ -87,6 +87,7 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	public Resources res;
 
 	public HostStorage hostdb;
+	protected HostDatabase hostDatabase;
 	public ColorStorage colordb;
 	public PubkeyDatabase pubkeydb;
 
@@ -129,6 +130,7 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 		pubkeyTimer = new Timer("pubkeyTimer", true);
 
 		hostdb = HostDatabase.get(this);
+		hostDatabase = HostDatabase.get(this);
 		colordb = HostDatabase.get(this);
 		pubkeydb = PubkeyDatabase.get(this);
 
@@ -267,11 +269,13 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	 * Open a new connection by reading parameters from the given URI. Follows
 	 * format specified by an individual transport.
 	 */
-	public TerminalBridge openConnection(Uri uri, PortForwardBean portForwardBean) throws Exception {
+	public TerminalBridge openConnection(Uri uri, PortForwardBean portForwardBean, String pass) throws Exception {
 		HostBean host = TransportFactory.findHost(hostdb, uri);
 
 		if (host == null)
 			host = TransportFactory.getTransport(uri.getScheme()).createHost(uri);
+
+		host.setPassword(pass);
 
 		return openConnection(host, portForwardBean);
 	}

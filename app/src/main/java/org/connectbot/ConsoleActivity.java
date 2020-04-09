@@ -116,6 +116,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 
 	private SharedPreferences prefs = null;
 	private PortForwardBean portforwarding = null;
+	private String pass = null;
 
 	// determines whether or not menuitem accelerators are bound
 	// otherwise they collide with an external keyboard's CTRL-char
@@ -168,7 +169,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			if (requestedNickname != null && requestedBridge == null) {
 				try {
 					Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s), so creating one now", requested.toString(), requestedNickname));
-					requestedBridge = bound.openConnection(requested, portforwarding);
+					requestedBridge = bound.openConnection(requested, portforwarding, pass);
 				} catch (Exception e) {
 					Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
 				}
@@ -485,6 +486,10 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 		hardKeyboard = getResources().getConfiguration().keyboard ==
 				Configuration.KEYBOARD_QWERTY;
 
+		// pass collected password down to current terminal
+		pass = (String) Objects.requireNonNull(getIntent().
+				getExtras()).getSerializable(PASSWORD_REFERENCE);
+
 
 		clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
 		prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -543,12 +548,8 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			@Override
 			public void onFocusChange(View view, boolean b) {
 
-				// pass collected password down to current terminal
-				String value = "";
-				value = (String) Objects.requireNonNull(getIntent().
-						getExtras()).getSerializable(PASSWORD_REFERENCE);
 				PromptHelper helper = getCurrentPromptHelper();
-				helper.setResponse(value);
+				helper.setResponse(pass);
 				// finally clear password for next user
 				stringPrompt.setText("");
 				updatePromptVisible();
@@ -1065,7 +1066,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 					Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s)," +
 							"so creating one now", requested.toString(), requested.getFragment()));
 
-					bound.openConnection(requested, portforwarding);
+					bound.openConnection(requested, portforwarding, pass);
 				} catch (Exception e) {
 					Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
 					// TODO: We should display an error dialog here.
