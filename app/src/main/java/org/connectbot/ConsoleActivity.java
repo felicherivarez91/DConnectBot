@@ -79,6 +79,7 @@ import com.google.android.material.tabs.TabLayout;
 import org.connectbot.bean.HostBean;
 import org.connectbot.bean.PortForwardBean;
 import org.connectbot.service.BridgeDisconnectedListener;
+import org.connectbot.service.ConnectionCheck;
 import org.connectbot.service.PromptHelper;
 import org.connectbot.service.TerminalBridge;
 import org.connectbot.service.TerminalKeyListener;
@@ -90,6 +91,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Timer;
 
 import de.mud.terminal.vt320;
 
@@ -97,903 +99,530 @@ import static org.connectbot.util.PreferenceConstants.PASSWORD_REFERENCE;
 import static org.connectbot.util.PreferenceConstants.PORT_FORWARD_BEAN;
 
 public class ConsoleActivity extends AppCompatActivity implements BridgeDisconnectedListener {
-	public final static String TAG = "CB.ConsoleActivity";
+    public final static String TAG = "CB.ConsoleActivity";
 
-	protected static final int REQUEST_EDIT = 1;
+    protected static final int REQUEST_EDIT = 1;
+    private static final String STATE_SELECTED_URI = "selectedUri";
+    protected TerminalViewPager pager = null;
+    protected TabLayout tabs = null;
+    protected Toolbar toolbar = null;
+    @Nullable
+    protected TerminalManager bound = null;
+    protected TerminalPagerAdapter adapter = null;
+    protected LayoutInflater inflater = null;
+    protected Uri requested;
+    protected ClipboardManager clipboard;
+    protected EditText stringPrompt;
 
-	private static final int KEYBOARD_DISPLAY_TIME = 3000;
-	private static final int KEYBOARD_REPEAT_INITIAL = 500;
-	private static final int KEYBOARD_REPEAT = 100;
-	private static final String STATE_SELECTED_URI = "selectedUri";
+    // determines whether or not menuitem accelerators are bound
+    // otherwise they collide with an external keyboard's CTRL-char
+    //private boolean hardKeyboard = false;
+    protected Handler keyRepeatHandler = new Handler();
+    private SharedPreferences prefs = null;
+    private PortForwardBean portforwarding = null;
+    private String pass = null;
+    private RelativeLayout stringPromptGroup;
+    private TextView stringPromptInstructions;
+    private TextView connectionstatus;
 
-	protected TerminalViewPager pager = null;
-	protected TabLayout tabs = null;
-	protected Toolbar toolbar = null;
-	@Nullable
-	protected TerminalManager bound = null;
-	protected TerminalPagerAdapter adapter = null;
-	protected LayoutInflater inflater = null;
+    //private Animation keyboard_fade_in, keyboard_fade_out;
+    private Animation fade_out_delayed;
+    private MenuItem disconnect, copy, paste, portForward, resize, urlscan;
+    private boolean forcedOrientation;
+    private Timer mtimer;
 
-	private SharedPreferences prefs = null;
-	private PortForwardBean portforwarding = null;
-	private String pass = null;
+    //private ImageView mKeyboardButton;
+    private View contentView;
+    @Nullable
+    private ActionBar actionBar;
+    private boolean inActionBarMenu = false;
+    private boolean titleBarHide;
+    protected Handler promptHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            // someone below us requested to display a prompt
+            updatePromptVisible();
+        }
+    };
 
-	// determines whether or not menuitem accelerators are bound
-	// otherwise they collide with an external keyboard's CTRL-char
-	private boolean hardKeyboard = false;
+    public Handler mhandler = new Handler(new Handler.Callback() {
+        @Override
+        public boolean handleMessage(Message msg) {
+            switch (msg.what) {
+                case 0:
+                    connectionstatus.setText(R.string.connection_status_zero);break;
+                case 1:
+                    connectionstatus.setText(R.string.connection_status_one);break;
+                case 2:
+                    connectionstatus.setText(R.string.connection_status_two);break;
+            }
+            return true;
+        }
+    });
 
-	protected Uri requested;
+    private ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName className, IBinder service) {
+            bound = ((TerminalManager.TerminalBinder) service).getService();
 
-	protected ClipboardManager clipboard;
-	private RelativeLayout stringPromptGroup;
-	protected EditText stringPrompt;
-	private TextView stringPromptInstructions;
-	private LinearLayout keyboardGroup;
-	private Runnable keyboardGroupHider;
-
-	private TextView empty;
-
-	private Animation fade_out_delayed;
-
-	private Animation keyboard_fade_in, keyboard_fade_out;
-
-	private MenuItem disconnect, copy, paste, portForward, resize, urlscan;
-
-	private boolean forcedOrientation;
-
-	private Handler handler = new Handler();
-
-	private View contentView;
-
-	private ImageView mKeyboardButton;
-
-	@Nullable private ActionBar actionBar;
-	private boolean inActionBarMenu = false;
-	private boolean titleBarHide;
-	private boolean keyboardAlwaysVisible = false;
-
-	private ServiceConnection connection = new ServiceConnection() {
-		@Override
-		public void onServiceConnected(ComponentName className, IBinder service) {
-			bound = ((TerminalManager.TerminalBinder) service).getService();
-
-			// let manager know about our event handling services
-			bound.disconnectListener = ConsoleActivity.this;
-			bound.setResizeAllowed(true);
-
-
-			final String requestedNickname = (requested != null) ? requested.getFragment() : null;
-			TerminalBridge requestedBridge = bound.getConnectedBridge(requestedNickname);
-
-			// If we didn't find the requested connection, try opening it
-			if (requestedNickname != null && requestedBridge == null) {
-				try {
-					Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s), so creating one now", requested.toString(), requestedNickname));
-					requestedBridge = bound.openConnection(requested, portforwarding, pass);
-				} catch (Exception e) {
-					Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
-				}
-			}
-
-			// create views for all bridges on this service
-			adapter.notifyDataSetChanged();
-			final int requestedIndex = bound.getBridges().indexOf(requestedBridge);
-
-			if (requestedBridge != null)
-				requestedBridge.promptHelper.setHandler(promptHandler);
+            // let manager know about our event handling services
+            bound.disconnectListener = ConsoleActivity.this;
+            bound.setResizeAllowed(true);
 
 
-			if (requestedIndex != -1) {
-				pager.post(new Runnable() {
-					@Override
-					public void run() {
-						setDisplayedTerminal(requestedIndex);
-					}
-				});
-			}
-		}
+            final String requestedNickname = (requested != null) ? requested.getFragment() : null;
+            TerminalBridge requestedBridge = bound.getConnectedBridge(requestedNickname);
 
-		@Override
-		public void onServiceDisconnected(ComponentName className) {
-			bound = null;
-			adapter.notifyDataSetChanged();
-			updateEmptyVisible();
-		}
-	};
+            // If we didn't find the requested connection, try opening it
+            if (requestedNickname != null && requestedBridge == null) {
+                try {
+                    Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s), so creating one now", requested.toString(), requestedNickname));
+                    requestedBridge = bound.openConnection(requested, portforwarding, pass);
+                } catch (Exception e) {
+                    Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
+                }
+            }
 
-	protected Handler promptHandler = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-			// someone below us requested to display a prompt
-			updatePromptVisible();
-		}
-	};
+            // create views for all bridges on this service
+            adapter.notifyDataSetChanged();
+            final int requestedIndex = bound.getBridges().indexOf(requestedBridge);
 
-	@Override
-	public void onDisconnected(TerminalBridge bridge) {
-		synchronized (adapter) {
-			adapter.notifyDataSetChanged();
-			Log.d(TAG, "Someone sending HANDLE_DISCONNECT to parentHandler");
-
-			if (bridge.isAwaitingClose()) {
-				closeBridge(bridge);
-			}
-		}
-	}
-
-	protected OnClickListener emulatedKeysListener = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			onEmulatedKeyClicked(v);
-		}
-	};
-
-	protected Handler keyRepeatHandler = new Handler();
+            if (requestedBridge != null)
+                requestedBridge.promptHelper.setHandler(promptHandler);
 
 
-	/**
-	 * Handle repeatable virtual keys and touch events
-	 */
-	public class KeyRepeater implements Runnable, OnTouchListener, OnClickListener {
-		private View mView;
-		private Handler mHandler;
-		private boolean mDown;
+            if (requestedIndex != -1) {
+                pager.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        setDisplayedTerminal(requestedIndex);
+                    }
+                });
+            }
+        }
 
-		public KeyRepeater(Handler handler, View view) {
-			mView = view;
-			mHandler = handler;
-			mDown = false;
-		}
+        @Override
+        public void onServiceDisconnected(ComponentName className) {
+            bound = null;
+            adapter.notifyDataSetChanged();
+        }
+    };
 
-		@Override
-		public void run() {
-			mDown = true;
-			mHandler.removeCallbacks(this);
-			mHandler.postDelayed(this, KEYBOARD_REPEAT);
-			mView.performClick();
-		}
+    @Override
+    public void onDisconnected(TerminalBridge bridge) {
+        synchronized (adapter) {
+            adapter.notifyDataSetChanged();
+            Log.d(TAG, "Someone sending HANDLE_DISCONNECT to parentHandler");
 
-		@Override
-		public boolean onTouch(View v, MotionEvent event) {
-			if (BuildConfig.DEBUG) {
-				Log.d(TAG, "KeyRepeater.onTouch(" + v.getId() + ", " +
-						event.getAction() + ", " +
-						event.getActionIndex() + ", " +
-						event.getActionMasked() + ");");
-			}
-			switch (event.getAction()) {
-			case MotionEvent.ACTION_DOWN:
-				mDown = false;
-				mHandler.postDelayed(this, KEYBOARD_REPEAT_INITIAL);
-				mView.setPressed(true);
-				return (true);
+            if (bridge.isAwaitingClose()) {
+                closeBridge(bridge);
+            }
+        }
+    }
 
-			case MotionEvent.ACTION_CANCEL:
-				mHandler.removeCallbacks(this);
-				mView.setPressed(false);
-				return (true);
+    /**
+     * @param bridge
+     */
+    private void closeBridge(final TerminalBridge bridge) {
+        updatePromptVisible();
 
-			case MotionEvent.ACTION_UP:
-				mHandler.removeCallbacks(this);
-				mView.setPressed(false);
+        if (pager.getChildCount() == 0) {
+            Intent intent = new Intent(this, HostListActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+        }
+    }
 
-				if (!mDown) {
-					mView.performClick();
-				}
-				return (true);
-			}
-			return false;
-		}
+    protected View findCurrentView(int id) {
+        View view = pager.findViewWithTag(adapter.getBridgeAtPosition(pager.getCurrentItem()));
+        if (view == null) {
+            return null;
+        }
+        return view.findViewById(id);
+    }
 
-		@Override
-		public void onClick(View view) {
-			onEmulatedKeyClicked(view);
-		}
-	}
+    protected PromptHelper getCurrentPromptHelper() {
+        TerminalView view = adapter.getCurrentTerminalView();
+        if (view == null) return null;
+        return view.bridge.promptHelper;
+    }
 
-	private void onEmulatedKeyClicked(View v) {
-		TerminalView terminal = adapter.getCurrentTerminalView();
-		if (terminal == null) return;
+    protected void hideAllPrompts() {
+        stringPromptGroup.setVisibility(View.GONE);
+    }
 
-		if (BuildConfig.DEBUG) {
-			Log.d(TAG, "onEmulatedKeyClicked(" + v.getId() + ")");
-		}
-		TerminalKeyListener handler = terminal.bridge.getKeyHandler();
-		boolean hideKeys = false;
+    @TargetApi(11)
+    private void requestActionBar() {
+        supportRequestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
+    }
 
-		switch (v.getId()) {
-		case R.id.button_ctrl:
-			handler.metaPress(TerminalKeyListener.OUR_CTRL_ON, true);
-			hideKeys = true;
-			break;
-		case R.id.button_esc:
-			handler.sendEscape();
-			hideKeys = true;
-			break;
-		case R.id.button_tab:
-			handler.sendTab();
-			hideKeys = true;
-			break;
-
-		case R.id.button_up:
-			handler.sendPressedKey(vt320.KEY_UP);
-			break;
-		case R.id.button_down:
-			handler.sendPressedKey(vt320.KEY_DOWN);
-			break;
-		case R.id.button_left:
-			handler.sendPressedKey(vt320.KEY_LEFT);
-			break;
-		case R.id.button_right:
-			handler.sendPressedKey(vt320.KEY_RIGHT);
-			break;
-
-		case R.id.button_home:
-			handler.sendPressedKey(vt320.KEY_HOME);
-			break;
-		case R.id.button_end:
-			handler.sendPressedKey(vt320.KEY_END);
-			break;
-		case R.id.button_pgup:
-			handler.sendPressedKey(vt320.KEY_PAGE_UP);
-			break;
-		case R.id.button_pgdn:
-			handler.sendPressedKey(vt320.KEY_PAGE_DOWN);
-			break;
-
-		case R.id.button_f1:
-			handler.sendPressedKey(vt320.KEY_F1);
-			break;
-		case R.id.button_f2:
-			handler.sendPressedKey(vt320.KEY_F2);
-			break;
-		case R.id.button_f3:
-			handler.sendPressedKey(vt320.KEY_F3);
-			break;
-		case R.id.button_f4:
-			handler.sendPressedKey(vt320.KEY_F4);
-			break;
-		case R.id.button_f5:
-			handler.sendPressedKey(vt320.KEY_F5);
-			break;
-		case R.id.button_f6:
-			handler.sendPressedKey(vt320.KEY_F6);
-			break;
-		case R.id.button_f7:
-			handler.sendPressedKey(vt320.KEY_F7);
-			break;
-		case R.id.button_f8:
-			handler.sendPressedKey(vt320.KEY_F8);
-			break;
-		case R.id.button_f9:
-			handler.sendPressedKey(vt320.KEY_F9);
-			break;
-		case R.id.button_f10:
-			handler.sendPressedKey(vt320.KEY_F10);
-			break;
-		case R.id.button_f11:
-			handler.sendPressedKey(vt320.KEY_F11);
-			break;
-		case R.id.button_f12:
-			handler.sendPressedKey(vt320.KEY_F12);
-			break;
-		default:
-			Log.e(TAG, "Unknown emulated key clicked: " + v.getId());
-			break;
-		}
-
-		if (hideKeys) {
-			hideEmulatedKeys();
-		} else {
-			autoHideEmulatedKeys();
-		}
-
-		terminal.bridge.tryKeyVibrate();
-		hideActionBarIfRequested();
-	}
-
-	private void hideActionBarIfRequested() {
-		if (titleBarHide && actionBar != null) {
-			actionBar.hide();
-		}
-	}
-
-	/**
-	 * @param bridge
-	 */
-	private void closeBridge(final TerminalBridge bridge) {
-		updateEmptyVisible();
-		updatePromptVisible();
-
-		// If we just closed the last bridge, go back to the previous activity.
-		if (pager.getChildCount() == 0) {
-			finish();
-		}
-	}
-
-	protected View findCurrentView(int id) {
-		View view = pager.findViewWithTag(adapter.getBridgeAtPosition(pager.getCurrentItem()));
-		if (view == null) {
-			return null;
-		}
-		return view.findViewById(id);
-	}
-
-	protected PromptHelper getCurrentPromptHelper() {
-		TerminalView view = adapter.getCurrentTerminalView();
-		if (view == null) return null;
-		return view.bridge.promptHelper;
-	}
-
-	protected void hideAllPrompts() {
-		stringPromptGroup.setVisibility(View.GONE);
-	}
-
-	private void showEmulatedKeys(boolean showActionBar) {
-		if (keyboardGroup.getVisibility() == View.GONE) {
-			keyboardGroup.startAnimation(keyboard_fade_in);
-			keyboardGroup.setVisibility(View.VISIBLE);
-		}
-		if (showActionBar) {
-			actionBar.show();
-		}
-		autoHideEmulatedKeys();
-	}
-
-	private void autoHideEmulatedKeys() {
-		if (keyboardGroupHider != null) {
-			handler.removeCallbacks(keyboardGroupHider);
-		}
-
-		keyboardGroupHider = new Runnable() {
-			@Override
-			public void run() {
-				if (keyboardGroup.getVisibility() == View.GONE || inActionBarMenu) {
-					return;
-				}
-
-				if (!keyboardAlwaysVisible) {
-					keyboardGroup.startAnimation(keyboard_fade_out);
-					keyboardGroup.setVisibility(View.GONE);
-				}
-				hideActionBarIfRequested();
-				keyboardGroupHider = null;
-			}
-		};
-		handler.postDelayed(keyboardGroupHider, KEYBOARD_DISPLAY_TIME);
-	}
-
-	private void hideEmulatedKeys() {
-		if (!keyboardAlwaysVisible) {
-			if (keyboardGroupHider != null)
-				handler.removeCallbacks(keyboardGroupHider);
-			keyboardGroup.setVisibility(View.GONE);
-		}
-		hideActionBarIfRequested();
-	}
-
-	@TargetApi(11)
-	private void requestActionBar() {
-		supportRequestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
-	}
-
-	@Override
-	public void onCreate(Bundle icicle) {
-		super.onCreate(icicle);
+    @Override
+    public void onCreate(Bundle icicle) {
+        super.onCreate(icicle);
 
         StrictModeSetup.run();
 
-		hardKeyboard = getResources().getConfiguration().keyboard ==
-				Configuration.KEYBOARD_QWERTY;
-
-		// pass collected password down to current terminal
-		pass = (String) Objects.requireNonNull(getIntent().
-				getExtras()).getSerializable(PASSWORD_REFERENCE);
-
-
-		clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-		prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        prefs = PreferenceManager.getDefaultSharedPreferences(this);
         portforwarding = (PortForwardBean) getIntent().getSerializableExtra(PORT_FORWARD_BEAN);
+        pass = (String) getIntent().getSerializableExtra(PASSWORD_REFERENCE);
 
-		titleBarHide = prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false);
+        titleBarHide = prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false);
         if (titleBarHide) {
-			// This is a separate method because Gradle does not uniformly respect the conditional
-			// Build check. See: https://code.google.com/p/android/issues/detail?id=137195
-			requestActionBar();
-		}
-
-		this.setContentView(R.layout.act_console);
-
-		// hide status bar if requested by user
-		if (prefs.getBoolean(PreferenceConstants.FULLSCREEN, false)) {
-			getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-					WindowManager.LayoutParams.FLAG_FULLSCREEN);
-		}
-
-		// TODO find proper way to disable volume key beep if it exists.
-		setVolumeControlStream(AudioManager.STREAM_MUSIC);
-
-		// handle requested console from incoming intent
-		if (icicle == null) {
-			requested = getIntent().getData();
-		} else {
-			String uri = icicle.getString(STATE_SELECTED_URI);
-			if (uri != null) {
-				requested = Uri.parse(uri);
-			}
-		}
-
-		inflater = LayoutInflater.from(this);
-
-		toolbar = findViewById(R.id.toolbar);
-
-		pager = findViewById(R.id.console_flip);
-		pager.addOnPageChangeListener(
-				new TerminalViewPager.SimpleOnPageChangeListener() {
-					@Override
-					public void onPageSelected(int position) {
-						setTitle(adapter.getPageTitle(position));
-						onTerminalChanged();
-					}
-				});
-		adapter = new TerminalPagerAdapter();
-		pager.setAdapter(adapter);
-
-		empty = findViewById(android.R.id.empty);
-
-		stringPromptGroup = findViewById(R.id.console_password_group);
-		stringPromptInstructions = findViewById(R.id.console_password_instructions);
-		stringPrompt = findViewById(R.id.console_password);
-		stringPrompt.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-			@Override
-			public void onFocusChange(View view, boolean b) {
-
-				PromptHelper helper = getCurrentPromptHelper();
-				helper.setResponse(pass);
-				// finally clear password for next user
-				stringPrompt.setText("");
-				updatePromptVisible();
-
-			}
-		});
-
-		fade_out_delayed = AnimationUtils.loadAnimation(this, R.anim.fade_out_delayed);
-
-		// Preload animation for keyboard button
-		keyboard_fade_in = AnimationUtils.loadAnimation(this, R.anim.keyboard_fade_in);
-		keyboard_fade_out = AnimationUtils.loadAnimation(this, R.anim.keyboard_fade_out);
-
-		keyboardGroup = findViewById(R.id.keyboard_group);
-
-		keyboardAlwaysVisible = prefs.getBoolean(PreferenceConstants.KEY_ALWAYS_VISIBLE, false);
-		if (keyboardAlwaysVisible) {
-			// equivalent to android:layout_above=keyboard_group
-			RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(
-					ViewGroup.LayoutParams.MATCH_PARENT,
-					ViewGroup.LayoutParams.MATCH_PARENT);
-			layoutParams.addRule(RelativeLayout.ABOVE, R.id.keyboard_group);
-			pager.setLayoutParams(layoutParams);
-
-			layoutParams = new RelativeLayout.LayoutParams(
-					ViewGroup.LayoutParams.MATCH_PARENT,
-					ViewGroup.LayoutParams.WRAP_CONTENT);
-			layoutParams.addRule(RelativeLayout.ABOVE, R.id.keyboard_group);
-			findViewById(R.id.console_password_group).setLayoutParams(layoutParams);
-
-			// Show virtual keyboard
-			keyboardGroup.setVisibility(View.VISIBLE);
-		}
-
-		mKeyboardButton = findViewById(R.id.button_keyboard);
-		mKeyboardButton.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View view) {
-				View terminal = adapter.getCurrentTerminalView();
-				if (terminal == null)
-					return;
-				InputMethodManager inputMethodManager =
-					(InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-				inputMethodManager.toggleSoftInputFromWindow(terminal.getApplicationWindowToken(),
-					InputMethodManager.SHOW_FORCED, 0);
-				terminal.requestFocus();
-				hideEmulatedKeys();
-			}
-		});
-
-		findViewById(R.id.button_ctrl).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_esc).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_tab).setOnClickListener(emulatedKeysListener);
-
-		addKeyRepeater(findViewById(R.id.button_up));
-		addKeyRepeater(findViewById(R.id.button_up));
-		addKeyRepeater(findViewById(R.id.button_down));
-		addKeyRepeater(findViewById(R.id.button_left));
-		addKeyRepeater(findViewById(R.id.button_right));
-
-		findViewById(R.id.button_home).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_end).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_pgup).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_pgdn).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f1).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f2).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f3).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f4).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f5).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f6).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f7).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f8).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f9).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f10).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f11).setOnClickListener(emulatedKeysListener);
-		findViewById(R.id.button_f12).setOnClickListener(emulatedKeysListener);
-
-
-		actionBar = getSupportActionBar();
-		if (actionBar != null) {
-			actionBar.setDisplayHomeAsUpEnabled(true);
-			if (titleBarHide) {
-				actionBar.hide();
-			}
-			actionBar.addOnMenuVisibilityListener(new ActionBar.OnMenuVisibilityListener() {
-				@Override
-				public void onMenuVisibilityChanged(boolean isVisible) {
-					inActionBarMenu = isVisible;
-					if (!isVisible) {
-						hideEmulatedKeys();
-					}
-				}
-			});
-		}
-
-		final HorizontalScrollView keyboardScroll = findViewById(R.id.keyboard_hscroll);
-		if (!hardKeyboard) {
-			// Show virtual keyboard and scroll back and forth
-			showEmulatedKeys(false);
-			keyboardScroll.postDelayed(new Runnable() {
-				@Override
-				public void run() {
-					final int xscroll = findViewById(R.id.button_f12).getRight();
-					if (BuildConfig.DEBUG) {
-						Log.d(TAG, "smoothScrollBy(toEnd[" + xscroll + "])");
-					}
-					keyboardScroll.smoothScrollBy(xscroll, 0);
-					keyboardScroll.postDelayed(new Runnable() {
-						@Override
-						public void run() {
-							if (BuildConfig.DEBUG) {
-								Log.d(TAG, "smoothScrollBy(toStart[" + -xscroll + "])");
-							}
-							keyboardScroll.smoothScrollBy(-xscroll, 0);
-						}
-					}, 500);
-				}
-			}, 500);
-		}
-
-		// Reset keyboard auto-hide timer when scrolling
-		keyboardScroll.setOnTouchListener(
-				new OnTouchListener() {
-					@Override
-					public boolean onTouch(View v, MotionEvent event) {
-						switch (event.getAction()) {
-						case MotionEvent.ACTION_MOVE:
-							autoHideEmulatedKeys();
-							break;
-						case MotionEvent.ACTION_UP:
-							v.performClick();
-							return (true);
-						}
-						return (false);
-					}
-				});
-
-		tabs = findViewById(R.id.tabs);
-		if (tabs != null)
-			setupTabLayoutWithViewPager();
-
-		pager.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				showEmulatedKeys(true);
-			}
-		});
-
-		// Change keyboard button image according to soft keyboard visibility
-		// How to detect keyboard visibility: http://stackoverflow.com/q/4745988
-		contentView = findViewById(android.R.id.content);
-		contentView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-				@Override
-				public void onGlobalLayout() {
-					Rect r = new Rect();
-					contentView.getWindowVisibleDisplayFrame(r);
-					int screenHeight = contentView.getRootView().getHeight();
-					int keypadHeight = screenHeight - r.bottom;
-
-					if (keypadHeight > screenHeight * 0.15) {
-						// keyboard is opened
-						mKeyboardButton.setImageResource(R.drawable.ic_keyboard_hide);
-						mKeyboardButton.setContentDescription(getResources().getText(R.string.image_description_hide_keyboard));
-					} else {
-						// keyboard is closed
-						mKeyboardButton.setImageResource(R.drawable.ic_keyboard);
-						mKeyboardButton.setContentDescription(getResources().getText(R.string.image_description_show_keyboard));
-					}
-				}
-			});
-	}
-
-	private void addKeyRepeater(View view) {
-		KeyRepeater keyRepeater = new KeyRepeater(keyRepeatHandler, view);
-		view.setOnClickListener(keyRepeater);
-		view.setOnTouchListener(keyRepeater);
-	}
-
-	/**
-	 * Ties the {@link TabLayout} to the {@link TerminalViewPager}.
-	 *
-	 * <p>This method will:
-	 * <ul>
-	 *     <li>Add a {@link TerminalViewPager.OnPageChangeListener} that will forward events to
-	 *     this TabLayout.</li>
-	 *     <li>Populate the TabLayout's tabs from the ViewPager's {@link PagerAdapter}.</li>
-	 *     <li>Set our {@link TabLayout.OnTabSelectedListener} which will forward
-	 *     selected events to the ViewPager</li>
-	 * </ul>
-	 * </p>
-	 */
-	public void setupTabLayoutWithViewPager() {
-		tabs.setTabsFromPagerAdapter(adapter);
-		pager.addOnPageChangeListener(new TabLayout.TabLayoutOnPageChangeListener(tabs));
-		tabs.setOnTabSelectedListener(new TabLayout.ViewPagerOnTabSelectedListener(pager));
-
-		if (adapter.getCount() > 0) {
-			final int curItem = pager.getCurrentItem();
-			if (tabs.getSelectedTabPosition() != curItem) {
-				tabs.getTabAt(curItem).select();
-			}
-		}
-	}
-
-	/**
-	 *
-	 */
-	private void configureOrientation() {
-		String rotateDefault;
-		if (getResources().getConfiguration().keyboard == Configuration.KEYBOARD_NOKEYS)
-			rotateDefault = PreferenceConstants.ROTATION_PORTRAIT;
-		else
-			rotateDefault = PreferenceConstants.ROTATION_LANDSCAPE;
-
-		String rotate = prefs.getString(PreferenceConstants.ROTATION, rotateDefault);
-		if (PreferenceConstants.ROTATION_DEFAULT.equals(rotate))
-			rotate = rotateDefault;
-
-		// request a forced orientation if requested by user
-		if (PreferenceConstants.ROTATION_LANDSCAPE.equals(rotate)) {
-			setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-			forcedOrientation = true;
-		} else if (PreferenceConstants.ROTATION_PORTRAIT.equals(rotate)) {
-			setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-			forcedOrientation = true;
-		} else {
-			setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-			forcedOrientation = false;
-		}
-	}
-
-
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		super.onCreateOptionsMenu(menu);
-
-		TerminalView view = adapter.getCurrentTerminalView();
-		final boolean activeTerminal = view != null;
-		boolean sessionOpen = false;
-		boolean disconnected = false;
-		boolean canForwardPorts = false;
-
-		if (activeTerminal) {
-			TerminalBridge bridge = view.bridge;
-			sessionOpen = bridge.isSessionOpen();
-			disconnected = bridge.isDisconnected();
-			canForwardPorts = bridge.canFowardPorts();
-		}
-
-		menu.setQwertyMode(true);
-
-		disconnect = menu.add(R.string.list_host_disconnect);
-		if (hardKeyboard)
-			disconnect.setAlphabeticShortcut('w');
-		if (!sessionOpen && disconnected)
-			disconnect.setTitle(R.string.console_menu_close);
-		disconnect.setEnabled(activeTerminal);
-		disconnect.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
-		disconnect.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-			@Override
-			public boolean onMenuItemClick(MenuItem item) {
-				// disconnect or close the currently visible session
-				TerminalView terminalView = adapter.getCurrentTerminalView();
-				TerminalBridge bridge = terminalView.bridge;
-
-				bridge.dispatchDisconnect(true);
-				return true;
-			}
-		});
-
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-			copy = menu.add(R.string.console_menu_copy);
-			if (hardKeyboard)
-				copy.setAlphabeticShortcut('c');
-			MenuItemCompat.setShowAsAction(copy, MenuItemCompat.SHOW_AS_ACTION_IF_ROOM);
-			copy.setIcon(R.drawable.ic_action_copy);
-			copy.setEnabled(activeTerminal);
-			copy.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-				@Override
-				public boolean onMenuItemClick(MenuItem item) {
-					adapter.getCurrentTerminalView().startPreHoneycombCopyMode();
-					Toast.makeText(ConsoleActivity.this, getString(R.string.console_copy_start), Toast.LENGTH_LONG).show();
-					return true;
-				}
-			});
-		}
-
-		paste = menu.add(R.string.console_menu_paste);
-		if (hardKeyboard)
-			paste.setAlphabeticShortcut('v');
-		MenuItemCompat.setShowAsAction(paste, MenuItemCompat.SHOW_AS_ACTION_IF_ROOM);
-		paste.setIcon(R.drawable.ic_action_paste);
-		paste.setEnabled(activeTerminal);
-		paste.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-			@Override
-			public boolean onMenuItemClick(MenuItem item) {
-				pasteIntoTerminal();
-				return true;
-			}
-		});
-
-		portForward = menu.add(R.string.console_menu_portforwards);
-		if (hardKeyboard)
-			portForward.setAlphabeticShortcut('f');
-		portForward.setIcon(android.R.drawable.ic_menu_manage);
-		portForward.setEnabled(sessionOpen && canForwardPorts);
-		portForward.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-			@Override
-			public boolean onMenuItemClick(MenuItem item) {
-				TerminalView terminalView = adapter.getCurrentTerminalView();
-				TerminalBridge bridge = terminalView.bridge;
-
-				Intent intent = new Intent(ConsoleActivity.this, PortForwardListActivity.class);
-				intent.putExtra(Intent.EXTRA_TITLE, bridge.host.getId());
-				ConsoleActivity.this.startActivityForResult(intent, REQUEST_EDIT);
-				return true;
-			}
-		});
-
-		urlscan = menu.add(R.string.console_menu_urlscan);
-		if (hardKeyboard)
-			urlscan.setAlphabeticShortcut('u');
-		urlscan.setIcon(android.R.drawable.ic_menu_search);
-		urlscan.setEnabled(activeTerminal);
-		urlscan.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-			@Override
-			public boolean onMenuItemClick(MenuItem item) {
-				final TerminalView terminalView = adapter.getCurrentTerminalView();
-
-				List<String> urls = terminalView.bridge.scanForURLs();
-
-				Dialog urlDialog = new Dialog(ConsoleActivity.this);
-				urlDialog.setTitle(R.string.console_menu_urlscan);
-
-				ListView urlListView = new ListView(ConsoleActivity.this);
-				URLItemListener urlListener = new URLItemListener(ConsoleActivity.this);
-				urlListView.setOnItemClickListener(urlListener);
-
-				urlListView.setAdapter(new ArrayAdapter<>(ConsoleActivity.this, android.R.layout.simple_list_item_1, urls));
-				urlDialog.setContentView(urlListView);
-				urlDialog.show();
-
-				return true;
-			}
-		});
-
-		resize = menu.add(R.string.console_menu_resize);
-		if (hardKeyboard)
-			resize.setAlphabeticShortcut('s');
-		resize.setIcon(android.R.drawable.ic_menu_crop);
-		resize.setEnabled(sessionOpen);
-		resize.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-			@Override
-			public boolean onMenuItemClick(MenuItem item) {
-				final TerminalView terminalView = adapter.getCurrentTerminalView();
-
-				@SuppressLint("InflateParams")  // Dialogs do not have a parent view.
-				final View resizeView = inflater.inflate(R.layout.dia_resize, null, false);
-				new androidx.appcompat.app.AlertDialog.Builder(
-								ConsoleActivity.this, R.style.AlertDialogTheme)
-						.setView(resizeView)
-						.setPositiveButton(R.string.button_resize, new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog, int which) {
-								int width, height;
-								try {
-									width = Integer.parseInt(((EditText) resizeView
-											.findViewById(R.id.width))
-											.getText().toString());
-									height = Integer.parseInt(((EditText) resizeView
-											.findViewById(R.id.height))
-											.getText().toString());
-								} catch (NumberFormatException nfe) {
-									// TODO change this to a real dialog where we can
-									// make the input boxes turn red to indicate an error.
-									return;
-								}
-
-								terminalView.forceSize(width, height);
-							}
-						}).setNegativeButton(android.R.string.cancel, null).create().show();
-
-				return true;
-			}
-		});
-
-		return true;
-	}
-
-	@Override
-	public boolean onPrepareOptionsMenu(Menu menu) {
-		super.onPrepareOptionsMenu(menu);
-
-		setVolumeControlStream(AudioManager.STREAM_NOTIFICATION);
-
-		final TerminalView view = adapter.getCurrentTerminalView();
-		boolean activeTerminal = view != null;
-		boolean sessionOpen = false;
-		boolean disconnected = false;
-		boolean canForwardPorts = false;
-
-		if (activeTerminal) {
-			TerminalBridge bridge = view.bridge;
-			sessionOpen = bridge.isSessionOpen();
-			disconnected = bridge.isDisconnected();
-			canForwardPorts = bridge.canFowardPorts();
-		}
-
-		disconnect.setEnabled(activeTerminal);
-		if (sessionOpen || !disconnected)
-			disconnect.setTitle(R.string.list_host_disconnect);
-		else
-			disconnect.setTitle(R.string.console_menu_close);
-
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-			copy.setEnabled(activeTerminal);
-		}
-		paste.setEnabled(activeTerminal);
-		portForward.setEnabled(sessionOpen && canForwardPorts);
-		urlscan.setEnabled(activeTerminal);
-		resize.setEnabled(sessionOpen);
-
-		return true;
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		switch (item.getItemId()) {
-		case android.R.id.home:
-			Intent intent = new Intent(this, HostListActivity.class);
-			intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-			startActivity(intent);
-			return true;
-		default:
-			return super.onOptionsItemSelected(item);
-		}
-	}
-
-	@Override
-	public void onOptionsMenuClosed(Menu menu) {
-		super.onOptionsMenuClosed(menu);
-
-		setVolumeControlStream(AudioManager.STREAM_MUSIC);
-	}
+            // This is a separate method because Gradle does not uniformly respect the conditional
+            // Build check. See: https://code.google.com/p/android/issues/detail?id=137195
+            requestActionBar();
+        }
+
+        this.setContentView(R.layout.act_console);
+
+        // hide status bar if requested by user
+        if (prefs.getBoolean(PreferenceConstants.FULLSCREEN, false)) {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }
+
+        // TODO find proper way to disable volume key beep if it exists.
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
+
+        // handle requested console from incoming intent
+        if (icicle == null) {
+            requested = getIntent().getData();
+        } else {
+            String uri = icicle.getString(STATE_SELECTED_URI);
+            if (uri != null) {
+                requested = Uri.parse(uri);
+            }
+        }
+        inflater = LayoutInflater.from(this);
+        toolbar = findViewById(R.id.toolbar);
+        mtimer = new Timer();
+        ConnectionCheck conn;
+        if (portforwarding != null) {
+            conn = new ConnectionCheck(Integer.parseInt(portforwarding.getNickname()), mhandler);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("port", portforwarding.getNickname());
+            editor.apply();
+        } else {
+            conn = new ConnectionCheck(Integer.parseInt(prefs.getString("port", "1022")), mhandler);
+        }
+        mtimer.scheduleAtFixedRate(conn, 100, 30000);
+        pager = findViewById(R.id.console_flip);
+        pager.addOnPageChangeListener(
+                new TerminalViewPager.SimpleOnPageChangeListener() {
+                    @Override
+                    public void onPageSelected(int position) {
+                        setTitle(adapter.getPageTitle(position));
+                        onTerminalChanged();
+                    }
+                });
+        adapter = new TerminalPagerAdapter();
+        pager.setAdapter(adapter);
+
+        connectionstatus = findViewById(R.id.connection_status);
+
+        stringPromptGroup = findViewById(R.id.console_password_group);
+        stringPromptInstructions = findViewById(R.id.console_password_instructions);
+        stringPrompt = findViewById(R.id.console_password);
+        stringPrompt.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View view, boolean b) {
+
+                PromptHelper helper = getCurrentPromptHelper();
+                helper.setResponse(pass);
+                // finally clear password for next user
+                stringPrompt.setText("");
+                updatePromptVisible();
+
+            }
+        });
+
+        fade_out_delayed = AnimationUtils.loadAnimation(this, R.anim.fade_out_delayed);
+
+        actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayHomeAsUpEnabled(false);
+            if (titleBarHide) {
+                actionBar.hide();
+            }
+            actionBar.addOnMenuVisibilityListener(new ActionBar.OnMenuVisibilityListener() {
+                @Override
+                public void onMenuVisibilityChanged(boolean isVisible) {
+                    inActionBarMenu = isVisible;
+                }
+            });
+        }
+
+        tabs = findViewById(R.id.tabs);
+        if (tabs != null)
+            setupTabLayoutWithViewPager();
+
+        // Change keyboard button image according to soft keyboard visibility
+        // How to detect keyboard visibility: http://stackoverflow.com/q/4745988
+        contentView = findViewById(android.R.id.content);
+        contentView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                Rect r = new Rect();
+                contentView.getWindowVisibleDisplayFrame(r);
+                int screenHeight = contentView.getRootView().getHeight();
+                int keypadHeight = screenHeight - r.bottom;
+            }
+        });
+    }
+
+
+    /**
+     * Ties the {@link TabLayout} to the {@link TerminalViewPager}.
+     *
+     * <p>This method will:
+     * <ul>
+     *     <li>Add a {@link TerminalViewPager.OnPageChangeListener} that will forward events to
+     *     this TabLayout.</li>
+     *     <li>Populate the TabLayout's tabs from the ViewPager's {@link PagerAdapter}.</li>
+     *     <li>Set our {@link TabLayout.OnTabSelectedListener} which will forward
+     *     selected events to the ViewPager</li>
+     * </ul>
+     * </p>
+     */
+    public void setupTabLayoutWithViewPager() {
+        tabs.setTabsFromPagerAdapter(adapter);
+        pager.addOnPageChangeListener(new TabLayout.TabLayoutOnPageChangeListener(tabs));
+        tabs.setOnTabSelectedListener(new TabLayout.ViewPagerOnTabSelectedListener(pager));
+
+        if (adapter.getCount() > 0) {
+            final int curItem = pager.getCurrentItem();
+            if (tabs.getSelectedTabPosition() != curItem) {
+                tabs.getTabAt(curItem).select();
+            }
+        }
+    }
+
+    @Override
+    public void onDestroy(){
+        super.onDestroy();
+        mtimer.cancel();
+    }
+
+    /**
+     *
+     */
+    private void configureOrientation() {
+        String rotateDefault;
+        if (getResources().getConfiguration().keyboard == Configuration.KEYBOARD_NOKEYS)
+            rotateDefault = PreferenceConstants.ROTATION_PORTRAIT;
+        else
+            rotateDefault = PreferenceConstants.ROTATION_LANDSCAPE;
+
+        String rotate = prefs.getString(PreferenceConstants.ROTATION, rotateDefault);
+        if (PreferenceConstants.ROTATION_DEFAULT.equals(rotate))
+            rotate = rotateDefault;
+
+        // request a forced orientation if requested by user
+        if (PreferenceConstants.ROTATION_LANDSCAPE.equals(rotate)) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            forcedOrientation = true;
+        } else if (PreferenceConstants.ROTATION_PORTRAIT.equals(rotate)) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            forcedOrientation = true;
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            forcedOrientation = false;
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        super.onCreateOptionsMenu(menu);
+
+        TerminalView view = adapter.getCurrentTerminalView();
+        final boolean activeTerminal = view != null;
+        boolean sessionOpen = false;
+        boolean disconnected = false;
+        boolean canForwardPorts = false;
+
+        if (activeTerminal) {
+            TerminalBridge bridge = view.bridge;
+            sessionOpen = bridge.isSessionOpen();
+            disconnected = bridge.isDisconnected();
+            canForwardPorts = bridge.canFowardPorts();
+        }
+
+        menu.setQwertyMode(true);
+
+        disconnect = menu.add(R.string.list_host_disconnect);
+		/*if (hardKeyboard)
+			disconnect.setAlphabeticShortcut('w');*/
+        if (!sessionOpen && disconnected)
+            disconnect.setTitle(R.string.console_menu_close);
+        disconnect.setEnabled(activeTerminal);
+        disconnect.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
+        disconnect.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                // disconnect or close the currently visible session
+                TerminalView terminalView = adapter.getCurrentTerminalView();
+                TerminalBridge bridge = terminalView.bridge;
+
+                bridge.dispatchDisconnect(true);
+                return true;
+            }
+        });
+
+        paste = menu.add(R.string.console_menu_paste);
+	/*	if (hardKeyboard)
+			paste.setAlphabeticShortcut('v');*/
+        MenuItemCompat.setShowAsAction(paste, MenuItemCompat.SHOW_AS_ACTION_IF_ROOM);
+        paste.setIcon(R.drawable.ic_action_paste);
+        paste.setEnabled(activeTerminal);
+        paste.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                pasteIntoTerminal();
+                return true;
+            }
+        });
+
+        portForward = menu.add(R.string.console_menu_portforwards);
+	/*	if (hardKeyboard)
+			portForward.setAlphabeticShortcut('f');*/
+        portForward.setIcon(android.R.drawable.ic_menu_manage);
+        portForward.setEnabled(sessionOpen && canForwardPorts);
+        portForward.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                TerminalView terminalView = adapter.getCurrentTerminalView();
+                TerminalBridge bridge = terminalView.bridge;
+
+                Intent intent = new Intent(ConsoleActivity.this, PortForwardListActivity.class);
+                intent.putExtra(Intent.EXTRA_TITLE, bridge.host.getId());
+                ConsoleActivity.this.startActivityForResult(intent, REQUEST_EDIT);
+                return true;
+            }
+        });
+
+        urlscan = menu.add(R.string.console_menu_urlscan);
+		/*if (hardKeyboard)
+			urlscan.setAlphabeticShortcut('u');*/
+        urlscan.setIcon(android.R.drawable.ic_menu_search);
+        urlscan.setEnabled(activeTerminal);
+        urlscan.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                final TerminalView terminalView = adapter.getCurrentTerminalView();
+
+                List<String> urls = terminalView.bridge.scanForURLs();
+
+                Dialog urlDialog = new Dialog(ConsoleActivity.this);
+                urlDialog.setTitle(R.string.console_menu_urlscan);
+
+                ListView urlListView = new ListView(ConsoleActivity.this);
+                URLItemListener urlListener = new URLItemListener(ConsoleActivity.this);
+                urlListView.setOnItemClickListener(urlListener);
+
+                urlListView.setAdapter(new ArrayAdapter<>(ConsoleActivity.this, android.R.layout.simple_list_item_1, urls));
+                urlDialog.setContentView(urlListView);
+                urlDialog.show();
+
+                return true;
+            }
+        });
+
+        resize = menu.add(R.string.console_menu_resize);
+		/*if (hardKeyboard)
+			resize.setAlphabeticShortcut('s');*/
+        resize.setIcon(android.R.drawable.ic_menu_crop);
+        resize.setEnabled(sessionOpen);
+        resize.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                final TerminalView terminalView = adapter.getCurrentTerminalView();
+
+                @SuppressLint("InflateParams")  // Dialogs do not have a parent view.
+                final View resizeView = inflater.inflate(R.layout.dia_resize, null, false);
+                new androidx.appcompat.app.AlertDialog.Builder(
+                        ConsoleActivity.this, R.style.AlertDialogTheme)
+                        .setView(resizeView)
+                        .setPositiveButton(R.string.button_resize, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                int width, height;
+                                try {
+                                    width = Integer.parseInt(((EditText) resizeView
+                                            .findViewById(R.id.width))
+                                            .getText().toString());
+                                    height = Integer.parseInt(((EditText) resizeView
+                                            .findViewById(R.id.height))
+                                            .getText().toString());
+                                } catch (NumberFormatException nfe) {
+                                    // TODO change this to a real dialog where we can
+                                    // make the input boxes turn red to indicate an error.
+                                    return;
+                                }
+
+                                terminalView.forceSize(width, height);
+                            }
+                        }).setNegativeButton(android.R.string.cancel, null).create().show();
+
+                return true;
+            }
+        });
+
+        return true;
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        super.onPrepareOptionsMenu(menu);
+
+        setVolumeControlStream(AudioManager.STREAM_NOTIFICATION);
+
+        final TerminalView view = adapter.getCurrentTerminalView();
+        boolean activeTerminal = view != null;
+        boolean sessionOpen = false;
+        boolean disconnected = false;
+        boolean canForwardPorts = false;
+
+        if (activeTerminal) {
+            TerminalBridge bridge = view.bridge;
+            sessionOpen = bridge.isSessionOpen();
+            disconnected = bridge.isDisconnected();
+            canForwardPorts = bridge.canFowardPorts();
+        }
+
+        disconnect.setEnabled(activeTerminal);
+        if (sessionOpen || !disconnected)
+            disconnect.setTitle(R.string.list_host_disconnect);
+        else
+            disconnect.setTitle(R.string.console_menu_close);
+
+        paste.setEnabled(activeTerminal);
+        portForward.setEnabled(sessionOpen && canForwardPorts);
+        urlscan.setEnabled(activeTerminal);
+        resize.setEnabled(sessionOpen);
+
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                Intent intent = new Intent(this, HostListActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(intent);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    @Override
+    public void onOptionsMenuClosed(Menu menu) {
+        super.onOptionsMenuClosed(menu);
+
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
+    }
 
 	@Override
 	public void onStart() {
@@ -1086,12 +715,11 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 		}
 	}
 
-	@Override
-	public void onStop() {
-		super.onStop();
-
-		unbindService(connection);
-	}
+    @Override
+    public void onStop() {
+        super.onStop();
+        unbindService(connection);
+    }
 
 	@Override
 	public void onSaveInstanceState(Bundle savedInstanceState) {
@@ -1120,10 +748,6 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 		bound.defaultBridge = view.bridge;
 	}
 
-	protected void updateEmptyVisible() {
-		// update visibility of empty status message
-		empty.setVisibility((pager.getChildCount() == 0) ? View.VISIBLE : View.GONE);
-	}
 
 	/**
 	 * Show any prompts requested by the currently visible {@link TerminalView}.
@@ -1140,10 +764,9 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			return;
 		}
 
-		PromptHelper prompt = view.bridge.promptHelper;
-		if (String.class.equals(prompt.promptRequested)) {
-			hideEmulatedKeys();
-			stringPromptGroup.setVisibility(View.VISIBLE);
+        PromptHelper prompt = view.bridge.promptHelper;
+        if (String.class.equals(prompt.promptRequested)) {
+            stringPromptGroup.setVisibility(View.VISIBLE);
 
 			String instructions = prompt.promptInstructions;
 			if (instructions != null && instructions.length() > 0) {
@@ -1155,63 +778,29 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 			stringPrompt.setHint(prompt.promptHint);
 			stringPrompt.requestFocus();
 
-		} else if (Boolean.class.equals(prompt.promptRequested)) {
-			hideEmulatedKeys();
+        } else {
+            hideAllPrompts();
+            view.requestFocus();
+        }
+    }
 
-		} else {
-			hideAllPrompts();
-			view.requestFocus();
-		}
-	}
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
 
-	private static class URLItemListener implements OnItemClickListener {
-		private WeakReference<Context> contextRef;
-
-		URLItemListener(Context context) {
-			this.contextRef = new WeakReference<>(context);
-		}
-
-		@Override
-		public void onItemClick(AdapterView<?> arg0, View view, int position, long id) {
-			Context context = contextRef.get();
-
-			if (context == null)
-				return;
-
-			try {
-				TextView urlView = (TextView) view;
-
-				String url = urlView.getText().toString();
-				Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-				context.startActivity(intent);
-			} catch (Exception e) {
-				Log.e(TAG, "couldn't open URL", e);
-				// We should probably tell the user that we couldn't find a handler...
-			}
-		}
-
-	}
-
-	@Override
-	public void onConfigurationChanged(Configuration newConfig) {
-		super.onConfigurationChanged(newConfig);
-
-		Log.d(TAG, String.format("onConfigurationChanged; requestedOrientation=%d, newConfig.orientation=%d", getRequestedOrientation(), newConfig.orientation));
-		if (bound != null) {
-			if (forcedOrientation &&
-					((newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE &&
-							getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) ||
-					(newConfig.orientation != Configuration.ORIENTATION_PORTRAIT &&
-							getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)))
-				bound.setResizeAllowed(false);
-			else
-				bound.setResizeAllowed(true);
-
-			bound.hardKeyboardHidden = (newConfig.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_YES);
-
-			mKeyboardButton.setVisibility(bound.hardKeyboardHidden ? View.VISIBLE : View.GONE);
-		}
-	}
+        Log.d(TAG, String.format("onConfigurationChanged; requestedOrientation=%d, newConfig.orientation=%d", getRequestedOrientation(), newConfig.orientation));
+        if (bound != null) {
+            if (forcedOrientation &&
+                    ((newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE &&
+                            getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) ||
+                            (newConfig.orientation != Configuration.ORIENTATION_PORTRAIT &&
+                                    getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)))
+                bound.setResizeAllowed(false);
+            else
+                bound.setResizeAllowed(true);
+            bound.hardKeyboardHidden = (newConfig.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_YES);
+        }
+    }
 
 	/**
 	 * Called whenever the displayed terminal is changed.
@@ -1250,15 +839,43 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 		bridge.injectString(clip);
 	}
 
-	public class TerminalPagerAdapter extends PagerAdapter {
-		@Override
-		public int getCount() {
-			if (bound != null) {
-				return bound.getBridges().size();
-			} else {
-				return 0;
-			}
-		}
+    private static class URLItemListener implements OnItemClickListener {
+        private WeakReference<Context> contextRef;
+
+        URLItemListener(Context context) {
+            this.contextRef = new WeakReference<>(context);
+        }
+
+        @Override
+        public void onItemClick(AdapterView<?> arg0, View view, int position, long id) {
+            Context context = contextRef.get();
+
+            if (context == null)
+                return;
+
+            try {
+                TextView urlView = (TextView) view;
+
+                String url = urlView.getText().toString();
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                context.startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "couldn't open URL", e);
+                // We should probably tell the user that we couldn't find a handler...
+            }
+        }
+
+    }
+
+    public class TerminalPagerAdapter extends PagerAdapter {
+        @Override
+        public int getCount() {
+            if (bound != null) {
+                return bound.getBridges().size();
+            } else {
+                return 0;
+            }
+        }
 
 		@Override
 		public Object instantiateItem(ViewGroup container, int position) {
