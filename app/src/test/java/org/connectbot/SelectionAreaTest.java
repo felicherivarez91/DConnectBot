@@ -17,11 +17,11 @@
 
 package org.connectbot;
 
-import org.connectbot.bean.SelectionArea;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import org.dconnectbot.bean.SelectionArea;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

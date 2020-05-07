@@ -16,7 +16,7 @@
   ~ limitations under the License.
   -->
 
-<RelativeLayout
+<androidx.constraintlayout.widget.ConstraintLayout
 	android:id="@android:id/content"
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:tools="http://schemas.android.com/tools"
@@ -71,4 +71,4 @@
 
 	</LinearLayout>
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

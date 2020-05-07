@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.connectbot.util;
+package org.dconnectbot.util;
 
 import java.security.Security;
 

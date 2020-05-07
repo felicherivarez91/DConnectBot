@@ -17,16 +17,17 @@
 
 package org.connectbot;
 
-import org.connectbot.service.TerminalManager;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.robolectric.Robolectric;
-
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Intent;
+
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import org.dconnectbot.service.TerminalManager;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.Robolectric;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;

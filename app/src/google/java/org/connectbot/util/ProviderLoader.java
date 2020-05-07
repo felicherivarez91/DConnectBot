@@ -17,10 +17,12 @@
 
 package org.connectbot.util;
 
-import com.google.android.gms.security.ProviderInstaller;
-
 import android.content.Context;
 import android.content.Intent;
+
+import com.google.android.gms.security.ProviderInstaller;
+
+import org.dconnectbot.util.ProviderLoaderListener;
 
 /**
  * Created by kenny on 3/2/17.

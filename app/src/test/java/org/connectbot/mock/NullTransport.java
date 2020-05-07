@@ -17,15 +17,15 @@
 
 package org.connectbot.mock;
 
+import android.net.Uri;
+
+import org.dconnectbot.bean.HostBean;
+import org.dconnectbot.service.TerminalBridge;
+import org.dconnectbot.service.TerminalManager;
+import org.dconnectbot.transport.AbsTransport;
+
 import java.io.IOException;
 import java.util.Map;
-
-import org.connectbot.bean.HostBean;
-import org.connectbot.service.TerminalBridge;
-import org.connectbot.service.TerminalManager;
-import org.connectbot.transport.AbsTransport;
-
-import android.net.Uri;
 
 /**
  * @author kenny
