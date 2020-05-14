@@ -57,6 +57,7 @@ public class HostBean extends AbstractBean {
     private boolean stayConnected = false;
     private boolean quickDisconnect = false;
     private String password = null;
+    private String email = null;
 
 	public HostBean() {
 
@@ -68,13 +69,14 @@ public class HostBean extends AbstractBean {
 	}
 
     public HostBean(String nickname, String protocol, String username, String hostname, int port,
-                    String password) {
+                    String password, String email) {
         this.nickname = nickname;
         this.protocol = protocol;
         this.username = username;
         this.hostname = hostname;
         this.port = port;
         this.password = password;
+        this.email = email;
     }
 
     public static HostBean fromContentValues(ContentValues values) {
@@ -84,6 +86,7 @@ public class HostBean extends AbstractBean {
         host.setUsername(values.getAsString(HostDatabase.FIELD_HOST_USERNAME));
         host.setHostname(values.getAsString(HostDatabase.FIELD_HOST_HOSTNAME));
         host.setPassword(values.getAsString(HostDatabase.FILED_HOST_PASSWORD));
+        host.setEmail(values.getAsString(HostDatabase.FILED_HOST_EMAIL));
         host.setPort(values.getAsInteger(HostDatabase.FIELD_HOST_PORT));
         host.setLastConnect(values.getAsLong(HostDatabase.FIELD_HOST_LASTCONNECT));
         host.setColor(values.getAsString(HostDatabase.FIELD_HOST_COLOR));
@@ -229,6 +232,15 @@ public class HostBean extends AbstractBean {
         this.password = password;
     }
 
+    public String getemail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+
     public boolean getCompression() {
         return compression;
     }
@@ -280,6 +292,7 @@ public class HostBean extends AbstractBean {
         values.put(HostDatabase.FIELD_HOST_USERNAME, username);
         values.put(HostDatabase.FIELD_HOST_HOSTNAME, hostname);
         values.put(HostDatabase.FILED_HOST_PASSWORD, password);
+        values.put(HostDatabase.FILED_HOST_EMAIL, email);
         values.put(HostDatabase.FIELD_HOST_PORT, port);
         values.put(HostDatabase.FIELD_HOST_LASTCONNECT, lastConnect);
         values.put(HostDatabase.FIELD_HOST_COLOR, color);

@@ -17,7 +17,6 @@
 
 package org.dconnectbot;
 
-import android.annotation.TargetApi;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -32,7 +31,6 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
@@ -40,7 +38,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.View;
-import android.view.ViewGroup;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
@@ -51,7 +48,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
 
 import org.dconnectbot.bean.HostBean;
@@ -301,6 +297,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
                             host.setNickname(host.toString());
                             host.setPort(response.body().get(0).getPort());
                             host.setPassword(response.body().get(0).getPass());
+                            host.setEmail(musername.getText().toString());
 
                             PortForwardBean portForwardBean = new PortForwardBean(
                                     0,
@@ -317,6 +314,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
                             Intent contents = new Intent(Intent.ACTION_VIEW, uri);
                             contents.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                             contents.putExtra(PreferenceConstants.PASSWORD_REFERENCE, host.getPassword());
+                            contents.putExtra(PreferenceConstants.EMAIL_REFERENCE, host.getemail());
                             contents.putExtra(PreferenceConstants.PORT_FORWARD_BEAN, portForwardBean);
                             contents.setClass(HostListActivity.this, ConsoleActivity.class);
                             HostListActivity.this.startActivity(contents);
@@ -449,25 +447,6 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
                         setIntent(new Intent());
                     }
                 }).create().show();
-    }
-
-    /**
-     * @return
-     */
-    private boolean startConsoleActivity(Uri uri) {
-        HostBean host = TransportFactory.findHost(hostdb, uri);
-        if (host == null) {
-            host = TransportFactory.getTransport(uri.getScheme()).createHost(uri);
-            host.setColor(HostDatabase.COLOR_GRAY);
-            host.setPubkeyId(HostDatabase.PUBKEYID_ANY);
-            hostdb.saveHost(host);
-        }
-
-        Intent intent = new Intent(HostListActivity.this, ConsoleActivity.class);
-        intent.setData(uri);
-        startActivity(intent);
-
-        return true;
     }
 
     protected void updateList() {
@@ -607,128 +586,4 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
         }
     }
 
-    @VisibleForTesting
-    private class HostAdapter extends ItemAdapter {
-        public final static int STATE_UNKNOWN = 1, STATE_CONNECTED = 2, STATE_DISCONNECTED = 3;
-        private final List<HostBean> hosts;
-        private final TerminalManager manager;
-
-        public HostAdapter(Context context, List<HostBean> hosts, TerminalManager manager) {
-            super(context);
-
-            this.hosts = hosts;
-            this.manager = manager;
-        }
-
-        /**
-         * Check if we're connected to a terminal with the given host.
-         */
-        private int getConnectedState(HostBean host) {
-            // always disconnected if we don't have backend service
-            if (this.manager == null || host == null) {
-                return STATE_UNKNOWN;
-            }
-
-            if (manager.getConnectedBridge(host) != null) {
-                return STATE_CONNECTED;
-            }
-
-            if (manager.disconnected.contains(host)) {
-                return STATE_DISCONNECTED;
-            }
-
-            return STATE_UNKNOWN;
-        }
-
-        @Override
-        public HostViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            View v = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_host, parent, false);
-            HostViewHolder vh = new HostViewHolder(v);
-            return vh;
-        }
-
-        @TargetApi(16)
-        private void hideFromAccessibility(View view, boolean hide) {
-            view.setImportantForAccessibility(hide ?
-                    View.IMPORTANT_FOR_ACCESSIBILITY_NO : View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-        }
-
-        @Override
-        public void onBindViewHolder(ItemViewHolder holder, int position) {
-            HostViewHolder hostHolder = (HostViewHolder) holder;
-
-            HostBean host = hosts.get(position);
-            hostHolder.host = host;
-            if (host == null) {
-                // Well, something bad happened. We can't continue.
-                Log.e("HostAdapter", "Host bean is null!");
-                hostHolder.nickname.setText("Error during lookup");
-            } else {
-                hostHolder.nickname.setText(host.getNickname());
-            }
-
-            switch (this.getConnectedState(host)) {
-                case STATE_UNKNOWN:
-                    hostHolder.icon.setImageState(new int[]{}, true);
-                    hostHolder.icon.setContentDescription(null);
-                    if (Build.VERSION.SDK_INT >= 16) {
-                        hideFromAccessibility(hostHolder.icon, true);
-                    }
-                    break;
-                case STATE_CONNECTED:
-                    hostHolder.icon.setImageState(new int[]{android.R.attr.state_checked}, true);
-                    hostHolder.icon.setContentDescription(getString(R.string.image_description_connected));
-                    if (Build.VERSION.SDK_INT >= 16) {
-                        hideFromAccessibility(hostHolder.icon, false);
-                    }
-                    break;
-                case STATE_DISCONNECTED:
-                    hostHolder.icon.setImageState(new int[]{android.R.attr.state_expanded}, true);
-                    hostHolder.icon.setContentDescription(getString(R.string.image_description_disconnected));
-                    if (Build.VERSION.SDK_INT >= 16) {
-                        hideFromAccessibility(hostHolder.icon, false);
-                    }
-                    break;
-                default:
-                    Log.e("HostAdapter", "Unknown host state encountered: " + getConnectedState(host));
-            }
-
-            @StyleRes final int chosenStyleFirstLine;
-            @StyleRes final int chosenStyleSecondLine;
-            if (HostDatabase.COLOR_RED.equals(host.getColor())) {
-                chosenStyleFirstLine = R.style.ListItemFirstLineText_Red;
-                chosenStyleSecondLine = R.style.ListItemSecondLineText_Red;
-            } else if (HostDatabase.COLOR_GREEN.equals(host.getColor())) {
-                chosenStyleFirstLine = R.style.ListItemFirstLineText_Green;
-                chosenStyleSecondLine = R.style.ListItemSecondLineText_Green;
-            } else if (HostDatabase.COLOR_BLUE.equals(host.getColor())) {
-                chosenStyleFirstLine = R.style.ListItemFirstLineText_Blue;
-                chosenStyleSecondLine = R.style.ListItemSecondLineText_Blue;
-            } else {
-                chosenStyleFirstLine = R.style.ListItemFirstLineText;
-                chosenStyleSecondLine = R.style.ListItemSecondLineText;
-            }
-
-            hostHolder.nickname.setTextAppearance(context, chosenStyleFirstLine);
-            hostHolder.caption.setTextAppearance(context, chosenStyleSecondLine);
-
-            CharSequence nice = context.getString(R.string.bind_never);
-            if (host.getLastConnect() > 0) {
-                nice = DateUtils.getRelativeTimeSpanString(host.getLastConnect() * 1000);
-            }
-
-            hostHolder.caption.setText(nice);
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return hosts.get(position).getId();
-        }
-
-        @Override
-        public int getItemCount() {
-            return hosts.size();
-        }
-    }
 }

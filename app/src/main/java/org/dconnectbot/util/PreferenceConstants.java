@@ -87,6 +87,7 @@ public final class PreferenceConstants {
 	public static final String NO = "no";
 	public static final String ALT = "alt";
 	public static final String PASSWORD_REFERENCE = "password";
+	public static final String EMAIL_REFERENCE = "email";
 	public static final String PORT_FORWARD_BEAN = "PortForwardBean";
     public static final String BASE_URL = "http://superdeputy.com";
 

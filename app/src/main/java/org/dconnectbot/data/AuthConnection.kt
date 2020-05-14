@@ -18,7 +18,9 @@
 package org.dconnectbot.data
 
 import retrofit2.Call
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Path
 
 /**
@@ -32,5 +34,8 @@ interface AuthConnection {
 
     @GET("ws/1/proxy/proxy_test/{PORTNUMBER}")
     fun proxytest(@Path("PORTNUMBER") port: Int): Call<Int>
+
+    @POST("ws/1/proxy/log_error2")
+    fun posterror(@Body err: ErrorBody): Call<Int>
 
 }

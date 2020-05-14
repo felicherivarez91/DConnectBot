@@ -269,13 +269,14 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	 * Open a new connection by reading parameters from the given URI. Follows
 	 * format specified by an individual transport.
 	 */
-	public TerminalBridge openConnection(Uri uri, PortForwardBean portForwardBean, String pass) throws Exception {
+	public TerminalBridge openConnection(Uri uri, PortForwardBean portForwardBean, String pass, String email) throws Exception {
 		HostBean host = TransportFactory.findHost(hostdb, uri);
 
 		if (host == null)
 			host = TransportFactory.getTransport(uri.getScheme()).createHost(uri);
 
 		host.setPassword(pass);
+		host.setEmail(email);
 
 		return openConnection(host, portForwardBean);
 	}

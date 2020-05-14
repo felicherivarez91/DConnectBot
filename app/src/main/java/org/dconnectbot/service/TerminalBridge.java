@@ -497,8 +497,8 @@ public class TerminalBridge implements VDUDisplay {
 		disconnectThread.start();
 
 		if (immediate || (host.getQuickDisconnect() && !host.getStayConnected())) {
-            //awaitingClose = true;
-            //triggerDisconnectListener();
+            awaitingClose = true;
+            triggerDisconnectListener();
 		} else {
 			{
 				final String line = manager.res.getString(R.string.alert_disconnect_msg);

@@ -105,6 +105,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
     private SharedPreferences prefs = null;
     private PortForwardBean portforwarding = null;
     private String pass = null;
+    private String email = null;
     private RelativeLayout stringPromptGroup;
     private TextView stringPromptInstructions;
     private TextView connectionstatus;
@@ -161,7 +162,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
             if (requestedNickname != null && requestedBridge == null) {
                 try {
                     Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s), so creating one now", requested.toString(), requestedNickname));
-                    requestedBridge = bound.openConnection(requested, portforwarding, pass);
+                    requestedBridge = bound.openConnection(requested, portforwarding, pass, email);
                 } catch (Exception e) {
                     Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
                 }
@@ -250,7 +251,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
         portforwarding = (PortForwardBean) getIntent().getSerializableExtra(PreferenceConstants.PORT_FORWARD_BEAN);
         pass = (String) getIntent().getSerializableExtra(PreferenceConstants.PASSWORD_REFERENCE);
-
+        email = (String) getIntent().getSerializableExtra(PreferenceConstants.EMAIL_REFERENCE);
         titleBarHide = prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false);
         if (titleBarHide) {
             // This is a separate method because Gradle does not uniformly respect the conditional
@@ -422,22 +423,22 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
         TerminalView view = adapter.getCurrentTerminalView();
         final boolean activeTerminal = view != null;
         boolean sessionOpen = false;
+        boolean disconnected = false;
         boolean canForwardPorts = false;
 
         if (activeTerminal) {
             TerminalBridge bridge = view.bridge;
             sessionOpen = bridge.isSessionOpen();
+            disconnected = bridge.isDisconnected();
             canForwardPorts = bridge.canFowardPorts();
         }
 
         menu.setQwertyMode(true);
 
-/*
-        disconnect = menu.add(R.string.list_host_disconnect);
-		*/
-/*if (hardKeyboard)
-			disconnect.setAlphabeticShortcut('w');*//*
 
+        disconnect = menu.add(R.string.list_host_disconnect);
+		/*if (hardKeyboard)
+			disconnect.setAlphabeticShortcut('w');*/
         if (!sessionOpen && disconnected)
             disconnect.setTitle(R.string.console_menu_close);
         disconnect.setEnabled(activeTerminal);
@@ -453,7 +454,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
                 return true;
             }
         });
-*/
+
 
         paste = menu.add(R.string.console_menu_paste);
 	/*	if (hardKeyboard)
@@ -576,11 +577,11 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
             canForwardPorts = bridge.canFowardPorts();
         }
 
-      /*  disconnect.setEnabled(activeTerminal);
+        disconnect.setEnabled(activeTerminal);
         if (sessionOpen || !disconnected)
             disconnect.setTitle(R.string.list_host_disconnect);
         else
-            disconnect.setTitle(R.string.console_menu_close);*/
+            disconnect.setTitle(R.string.console_menu_close);
 
         paste.setEnabled(activeTerminal);
         portForward.setEnabled(sessionOpen && canForwardPorts);
@@ -681,7 +682,7 @@ public class ConsoleActivity extends AppCompatActivity implements BridgeDisconne
 					Log.d(TAG, String.format("We couldnt find an existing bridge with URI=%s (nickname=%s)," +
 							"so creating one now", requested.toString(), requested.getFragment()));
 
-					bound.openConnection(requested, portforwarding, pass);
+                    bound.openConnection(requested, portforwarding, pass, email);
 				} catch (Exception e) {
 					Log.e(TAG, "Problem while trying to create new requested bridge from URI", e);
 					// TODO: We should display an error dialog here.

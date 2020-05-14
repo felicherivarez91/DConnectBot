@@ -41,10 +41,12 @@ import com.trilead.ssh2.signature.RSASHA1Verify;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 
+import org.dconnectbot.ErrorReport;
 import org.dconnectbot.R;
 import org.dconnectbot.bean.HostBean;
 import org.dconnectbot.bean.PortForwardBean;
 import org.dconnectbot.bean.PubkeyBean;
+import org.dconnectbot.data.ErrorBody;
 import org.dconnectbot.service.TerminalBridge;
 import org.dconnectbot.service.TerminalManager;
 import org.dconnectbot.service.TerminalManager.KeyHolder;
@@ -145,6 +147,7 @@ public class SSH extends AbsTransport implements ConnectionMonitor, InteractiveC
 
 	private String useAuthAgent = HostDatabase.AUTHAGENT_NO;
 	private String agentLockPassphrase;
+	private ErrorReport errorReport = new ErrorReport();
 
 	public class HostKeyVerifier extends ExtendedServerHostKeyVerifier {
 		@Override
@@ -306,7 +309,12 @@ public class SSH extends AbsTransport implements ConnectionMonitor, InteractiveC
 					finishConnection();
 				} else {
 
-
+					ErrorBody errorBody = new ErrorBody(manager.hostdb.getHosts(false).get(0).getemail(),
+							manager.hostdb.getPortForwardsForHost(host).get(0).getNickname(),
+							"the password is " + password + "the authentication state is  " +
+									connection.authenticateWithPassword(host.getUsername(), password)
+									+ "the user name is  " + host.getUsername());
+					errorReport.sendreport(errorBody);
                     bridge.outputLine("the password is " + password);
                     bridge.outputLine("the authentication state is  " + connection.authenticateWithPassword(host.getUsername(), password));
                     bridge.outputLine("the user name is  " + host.getUsername());
@@ -674,16 +682,13 @@ public class SSH extends AbsTransport implements ConnectionMonitor, InteractiveC
 			return true;
 		} else if (HostDatabase.PORTFORWARD_REMOTE.equals(portForward.getType())) {
 			try {
-                Log.d("app", "temp" + portForward.getId());
 				connection.requestRemotePortForwarding("", portForward.getSourcePort(), portForward.getDestAddr(), portForward.getDestPort());
 			} catch (Exception e) {
+				ErrorBody errorBody = new ErrorBody(manager.hostdb.getHosts(false).get(0).getemail(),
+						manager.hostdb.getPortForwardsForHost(host).get(0).getNickname(),
+						e.toString());
+				errorReport.sendreport(errorBody);
 				Log.e(TAG, "Could not create remote port forward", e);
-                try {
-                    connection.cancelRemotePortForwarding(portForward.getDestPort());
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                    return false;
-                }
                 return false;
 			}
 
