@@ -1,7 +1,7 @@
 /**
  * Originally from http://www.cornetdesign.com/files/BeanTestCase.java.txt
  */
-package org.connectbot.mock;
+package org.dconnectbot.mock;
 
 
 import java.lang.reflect.Field;

@@ -57,7 +57,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "org.connectbot"
+        applicationId "org.dconnectbot"
         versionName androidGitVersion.name()
         versionCode androidGitVersion.code()
 
@@ -284,5 +284,8 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'com.squareup.retrofit2:retrofit:2.8.1'
 	implementation 'com.squareup.retrofit2:converter-gson:2.4.0'
+    androidTestImplementation 'junit:junit:4.12'
+    androidTestImplementation 'junit:junit:4.12'
+    androidTestImplementation 'junit:junit:4.12'
 }
 

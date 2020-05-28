@@ -443,7 +443,7 @@
 	<string name="list_menu_disconnect">"Disconnect All"</string>
 	<string name="list_menu_settings">"Settings"</string>
 
-	<string name="list_host_disconnect">"Disconnect"</string>
+	<string name="list_host_disconnect">"Reconnect"</string>
 	<string name="list_host_edit">"Edit host"</string>
 	<string name="list_host_portforwards">"Edit port forwards"</string>
 	<string name="list_host_delete">"Delete host"</string>

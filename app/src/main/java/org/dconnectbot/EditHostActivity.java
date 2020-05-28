@@ -46,7 +46,7 @@ import java.util.Map;
 
 public class EditHostActivity extends AppCompatActivity implements HostEditorFragment.Listener {
 
-	private static final String EXTRA_EXISTING_HOST_ID = "org.connectbot.existing_host_id";
+	private static final String EXTRA_EXISTING_HOST_ID = "org.dconnectbot.existing_host_id";
 	private static final long NO_HOST_ID = -1;
 	private static final int ENABLED_ALPHA = 255;
 	private static final int DISABLED_ALPHA = 130;

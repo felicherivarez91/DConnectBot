@@ -26,8 +26,8 @@ import androidx.test.espresso.IdlingPolicy;
 import androidx.test.espresso.IdlingResource;
 import androidx.test.espresso.UiController;
 import androidx.test.espresso.ViewAction;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
+import androidx.test.runner.AndroidJUnit4;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 
 import org.dconnectbot.util.EntropyView;
@@ -43,7 +43,6 @@ import java.security.KeyPair;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
-import static androidx.test.InstrumentationRegistry.getInstrumentation;
 import static androidx.test.InstrumentationRegistry.getTargetContext;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.Espresso.registerIdlingResources;
@@ -57,10 +56,11 @@ import static androidx.test.espresso.action.ViewActions.typeText;
 import static androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 import static androidx.test.runner.lifecycle.Stage.RESUMED;
-import static org.connectbot.ConnectbotMatchers.hasHolderItem;
-import static org.connectbot.ConnectbotMatchers.withPubkeyNickname;
-import static org.hamcrest.Matchers.allOf;
+import static org.dconnectbot.ConnectbotMatchers.hasHolderItem;
+import static org.dconnectbot.ConnectbotMatchers.withPubkeyNickname;
+import static org.hamcrest.core.AllOf.allOf;
 
 /**
  * Created by kenny on 6/6/16.

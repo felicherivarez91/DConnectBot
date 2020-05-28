@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.connectbot.mock;
+package org.dconnectbot.mock;
 
 import java.io.IOException;
 import java.io.OutputStream;

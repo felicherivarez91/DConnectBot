@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.connectbot;
+package org.dconnectbot;
 
 import android.app.Application;
 import android.content.ComponentName;
@@ -40,7 +40,7 @@ public class HostListActivityTest {
 	private void mockBindToService(TerminalManager terminalManager) {
 		TerminalManager.TerminalBinder stubBinder = mock(TerminalManager.TerminalBinder.class);
 		when(stubBinder.getService()).thenReturn(terminalManager);
-		shadowOf((Application) ApplicationProvider.getApplicationContext()).setComponentNameAndServiceForBindService(new ComponentName("org.connectbot", TerminalManager.class.getName()), stubBinder);
+		shadowOf((Application) ApplicationProvider.getApplicationContext()).setComponentNameAndServiceForBindService(new ComponentName("org.dconnectbot", TerminalManager.class.getName()), stubBinder);
 	}
 
 	@Test

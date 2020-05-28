@@ -416,7 +416,6 @@ public class SSH extends AbsTransport implements ConnectionMonitor, InteractiveC
                     Thread.sleep(10000);
                     bridge.outputLine("Forwarded port can not be released.");
                 }
-                ;
                 bridge.outputLine(manager.res.getString(R.string.terminal_enable_portfoward, portForward.getDescription()));
             } catch (Exception e) {
                 Log.e(TAG, "Error setting up port forward during connect", e);
@@ -499,9 +498,16 @@ public class SSH extends AbsTransport implements ConnectionMonitor, InteractiveC
 			}
 		} catch (IOException e) {
 			Log.e(TAG, "Problem in SSH connection thread during authentication", e);
-
+			ErrorBody errorBody = new ErrorBody(manager.hostdb.getHosts(false).get(0).getemail(),
+					manager.hostdb.getPortForwardsForHost(host).get(0).getNickname(),
+					e.toString());
+			errorReport.sendreport(errorBody);
 			// Display the reason in the text.
 			Throwable t = e.getCause();
+			ErrorBody errorBody1 = new ErrorBody(manager.hostdb.getHosts(false).get(0).getemail(),
+					manager.hostdb.getPortForwardsForHost(host).get(0).getNickname(),
+					t.getCause() + t.getMessage());
+			errorReport.sendreport(errorBody1);
 			do {
 				bridge.outputLine(t.getMessage());
 				t = t.getCause();

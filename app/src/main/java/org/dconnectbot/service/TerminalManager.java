@@ -33,8 +33,6 @@ import android.os.IBinder;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
 import android.util.Log;
-
-import org.connectbot.util.ProviderLoader;
 import org.dconnectbot.R;
 import org.dconnectbot.bean.HostBean;
 import org.dconnectbot.bean.PortForwardBean;
@@ -44,6 +42,7 @@ import org.dconnectbot.data.HostStorage;
 import org.dconnectbot.transport.TransportFactory;
 import org.dconnectbot.util.HostDatabase;
 import org.dconnectbot.util.PreferenceConstants;
+import org.dconnectbot.util.ProviderLoader;
 import org.dconnectbot.util.ProviderLoaderListener;
 import org.dconnectbot.util.PubkeyDatabase;
 import org.dconnectbot.util.PubkeyUtils;
@@ -114,7 +113,7 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 
 	private boolean savingKeys;
 
-	protected List<WeakReference<TerminalBridge>> mPendingReconnect = new ArrayList<>();
+	protected WeakReference<TerminalBridge> mPendingReconnect;
 
 	public boolean hardKeyboardHidden;
 
@@ -275,8 +274,16 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 		if (host == null)
 			host = TransportFactory.getTransport(uri.getScheme()).createHost(uri);
 
-		host.setPassword(pass);
-		host.setEmail(email);
+		if (email != null && pass !=null ){
+			host.setPassword(pass);
+			host.setEmail(email);
+		}
+		else {
+			host.setPassword(hostdb.getHosts(false).get(0).getPassword());
+			host.setEmail(hostdb.getHosts(false).get(0).getemail());
+			List<PortForwardBean> forwardBean = hostdb.getPortForwardsForHost(hostdb.getHosts(false).get(0));
+			portForwardBean = forwardBean.get(0);
+		}
 
 		return openConnection(host, portForwardBean);
 	}
@@ -341,7 +348,7 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 				connectivityManager.decRef();
 			}
 
-			if (bridges.isEmpty() && mPendingReconnect.isEmpty()) {
+			if (bridges.isEmpty() && mPendingReconnect != null) {
 				shouldHideRunningNotification = true;
 			}
 
@@ -705,7 +712,7 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	public void requestReconnect(TerminalBridge bridge) {
 		synchronized (mPendingReconnect) {
 			mPendingReconnect.clear();
-			mPendingReconnect.add(new WeakReference<>(bridge));
+			mPendingReconnect = new WeakReference<>(bridge);
 			if (!bridge.isUsingNetwork() ||
 					connectivityManager.isConnected()) {
 				reconnectPending();
@@ -719,11 +726,8 @@ public class TerminalManager extends Service implements BridgeDisconnectedListen
 	 */
 	private void reconnectPending() {
 		synchronized (mPendingReconnect) {
-			for (WeakReference<TerminalBridge> ref : mPendingReconnect) {
-				TerminalBridge bridge = ref.get();
-				if (bridge == null) {
-					continue;
-				}
+				TerminalBridge bridge = mPendingReconnect.get();
+				if (bridge != null) {
 				bridge.startConnection();
 			}
 		}

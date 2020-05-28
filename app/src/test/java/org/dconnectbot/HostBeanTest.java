@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.connectbot;
+package org.dconnectbot;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -24,8 +24,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.connectbot.mock.BeanAssertions.assertMeetsEqualsContract;
-import static org.connectbot.mock.BeanAssertions.assertMeetsHashCodeContract;
+import static org.dconnectbot.mock.BeanAssertions.assertMeetsEqualsContract;
+import static org.dconnectbot.mock.BeanAssertions.assertMeetsHashCodeContract;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;

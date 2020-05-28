@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.connectbot;
+package org.dconnectbot;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 

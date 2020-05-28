@@ -233,6 +233,7 @@ public class HostListActivity extends AppCompatListActivity implements OnHostSta
             Intent contents = new Intent(Intent.ACTION_VIEW, uri);
             contents.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             contents.putExtra(PreferenceConstants.PASSWORD_REFERENCE, hosts.get(0).getPassword());
+            contents.putExtra(PreferenceConstants.EMAIL_REFERENCE, hosts.get(0).getemail());
             contents.putExtra(PreferenceConstants.PORT_FORWARD_BEAN, portForwardBean.get(0));
             contents.setClass(HostListActivity.this, ConsoleActivity.class);
             HostListActivity.this.startActivity(contents);
